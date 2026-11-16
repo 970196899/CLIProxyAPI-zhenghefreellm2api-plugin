@@ -2792,8 +2792,22 @@ type billingResourceResponse struct {
 //     remain 先钳到 [0, size]；used 取 CycleUsed 与 size-remain 的较大者，
 //     且当 used 更大时反推 remain = size - used；
 //   - 否则回退 Capacity 三字段，used 为 0 但 size > remain 时按差值补 used。
+//
+// 例外：上游对每月免费基础包（如 sp_tcaca_codebuddy_ide）下发双账本——
+// Capacity 记「发多少、用多少」，Cycle 记「本周期额度、本周期已用」。
+// 这类包不是周转包：Cycle 账会显示整期用尽（remain 0、used 等于 size），
+// 而 Capacity 账才是真实余额。无条件优先 Cycle 会把没动过的 500 点判成耗尽，
+// 因此识别出「Cycle 已清零 + Capacity 从未动用」时回退采信 Capacity。
 func packageRemainUsed(account billingResourceAccount) (remain, used, size int64) {
-	if account.CycleCapacitySize > 0 {
+	// 非周转基础包：Cycle 期已整期用尽，但 Capacity 账仍有余额且从未扣减过。
+	// CapacityUsed == 0 是常态；CycleCapacityUsed >= CycleCapacitySize 覆盖
+	// 上游把基础额记为「本周期已用满」的变体。两边都要有非零 size，
+	// 防止脏数据下算出 size = 0。
+	nonRollingBase := account.CycleCapacitySize > 0 &&
+		account.CycleCapacityRemain <= 0 &&
+		account.CapacitySize > 0 && account.CapacityRemain > 0 &&
+		(account.CapacityUsed == 0 || account.CycleCapacityUsed >= account.CycleCapacitySize)
+	if account.CycleCapacitySize > 0 && !nonRollingBase {
 		remain = account.CycleCapacityRemain
 		size = account.CycleCapacitySize
 		if remain < 0 {
