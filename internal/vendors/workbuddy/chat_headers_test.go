@@ -1,12 +1,17 @@
 package workbuddy
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
+	"freetier2api-plugin/cpasdk/pluginabi"
 	"freetier2api-plugin/internal/core"
+	"freetier2api-plugin/internal/hostbridge"
 )
 
 // uuidV7HexRe 是官方客户端对 conversationRequestId 的硬校验正则
@@ -204,5 +209,70 @@ func TestChatHeadersMatchGenuineClientGlobal(t *testing.T) {
 	}
 	if rootReqID != convReqID {
 		t.Fatalf("Global X-Root-Request-ID = %q must match %q", rootReqID, convReqID)
+	}
+}
+
+// TestProbeCLIUserAgentIsModern 锁定模型探测 UA 必须是当前官方 CLI 版本。
+// 上游已废弃 2.63.x 的探测请求，旧 UA 会让 /v3/config 静默拿到精简目录。
+func TestProbeCLIUserAgentIsModern(t *testing.T) {
+	if codeBuddyCLIUA != "CLI/2.179.0 CodeBuddy/2.179.0" {
+		t.Fatalf("codeBuddyCLIUA = %q, want CLI/2.179.0 CodeBuddy/2.179.0", codeBuddyCLIUA)
+	}
+}
+
+// TestFetchModelsFromUpstreamGlobalProbesWithModernCLIUA 锁定接线：
+// 只改常量而没有任何探测路径真的发它，是这类 bug 的另一种形态。
+func TestFetchModelsFromUpstreamGlobalProbesWithModernCLIUA(t *testing.T) {
+	// fetchModelsFromUpstream 是三路并发的，抓包必须加锁。
+	var (
+		uaMu       sync.Mutex
+		userAgents []string
+	)
+	hostbridge.Configure(func(_, method string, payload any) (json.RawMessage, error) {
+		if method != pluginabi.MethodHostHTTPDo {
+			return nil, fmt.Errorf("probe host: unsupported method %s", method)
+		}
+		raw, errMarshal := json.Marshal(payload)
+		if errMarshal != nil {
+			return nil, errMarshal
+		}
+		var req struct {
+			Headers map[string][]string `json:"headers"`
+		}
+		if errDecode := json.Unmarshal(raw, &req); errDecode != nil {
+			return nil, errDecode
+		}
+		uaMu.Lock()
+		if values := req.Headers["User-Agent"]; len(values) > 0 {
+			userAgents = append(userAgents, values[0])
+		}
+		uaMu.Unlock()
+		return json.Marshal(map[string]any{
+			"StatusCode": 200,
+			"Headers":    map[string][]string{"Content-Type": {"application/json"}},
+			"Body":       []byte(`{"code":0,"data":{"models":[]}}`),
+		})
+	})
+	t.Cleanup(func() { hostbridge.Configure(nil) })
+
+	client := NewClient(newRuntime(core.Env{}), Options{})
+	// 三路探测都回空清单，函数必然返回 "no models returned"：本用例只查 UA。
+	_, _ = client.fetchModelsFromUpstream(RegionGlobal)
+
+	uaMu.Lock()
+	captured := append([]string(nil), userAgents...)
+	uaMu.Unlock()
+
+	var sawCLI bool
+	for _, ua := range captured {
+		if ua == codeBuddyCLIUA {
+			sawCLI = true
+		}
+		if strings.Contains(ua, "2.63.2") {
+			t.Fatalf("探测请求仍在用已废弃的 2.63.x UA: %q", ua)
+		}
+	}
+	if !sawCLI {
+		t.Fatalf("没有任何探测请求携带 codeBuddyCLIUA（实际发出 %v）", captured)
 	}
 }
