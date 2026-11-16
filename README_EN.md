@@ -154,6 +154,8 @@ Since `v0.1.60` this plugin's ID and provider key are `freetierplus`, so it can 
    - or copy the `machine_salt` file from the old state directory into the new one (the file name is always `machine_salt`).
 5. **Both consoles list the same account files**: each plugin falls back to file-name matching for `workbuddy-*.json` style credentials, so accounts hijacked by another plugin stay visible. However, keepalive, scheduled check-in, 401 refresh, and the console's enable/disable/delete actions only touch accounts whose `type` belongs to this plugin, so the other side's credential files are never modified.
 
+6. **`cline` / `qoder` / `autoclaw` / `raccoon` / `minimaxcode` need manual care**: their credential files carry no `type` field, so the plugin cannot tell which side an account belongs to. If the same account is mounted in both plugins, both will refresh the same refresh token and may invalidate each other. Mount these accounts in **one side only**, or enable auto-keepalive/check-in on just one side. WorkBuddy, Trae, CodeArts and ZCode are unaffected — they write `type` and are covered by the gate above.
+
 ## Project Architecture
 
 ```text

@@ -154,6 +154,8 @@ curl http://localhost:8317/v1/messages \
    - 或把旧状态目录里的 `machine_salt` 文件复制到新状态目录（文件名固定为 `machine_salt`）。
 5. **控制台会同时列出两边的账号**：两个插件都按「文件名属于本插件约定」兜底列出 `workbuddy-*.json` 这类凭证，这是为了兜住被其他插件抢走 provider 的账号。但保活、自动签到、401 刷新，以及控制台的启用/停用/删除，只处理凭证里 `type` 属于本插件的账号，不会改动原版插件的凭证文件。
 
+6. **`cline` / `qoder` / `autoclaw` / `raccoon` / `minimaxcode` 这五家需要你自行规避**：它们的凭证文件不写 `type` 字段，插件无法判断某份凭证属于哪一边。双开时若同一账号在两个插件里都挂载，两边会各自续期同一份 refresh token，可能把对方刷失效。请让这五家的账号**只在一侧挂载**，或只在其中一侧启用自动保活与签到。WorkBuddy、Trae、CodeArts、ZCode 四家不受此限制（它们写 `type`，受上面的门禁保护）。
+
 ## 项目架构
 
 ```text
