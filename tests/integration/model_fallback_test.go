@@ -17,7 +17,7 @@ import (
 )
 
 // qoderCredentialJSON 是最小可用的 Qoder 凭证（UID 由文件名提供）。
-const qoderCredentialJSON = `{"type":"freetier","vendor":"qodercn","region":"cn",` +
+const qoderCredentialJSON = `{"type":"freetierplus","vendor":"qodercn","region":"cn",` +
 	`"device_token":"dt-abc","refresh_token":"drt-xyz","label":"nick"}`
 
 // qoderModelsUpstream 是 Qoder 模型清单的正常应答。

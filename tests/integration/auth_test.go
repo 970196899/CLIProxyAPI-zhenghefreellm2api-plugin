@@ -72,7 +72,7 @@ func TestAuthParseVendorOwnershipDiscrimination(t *testing.T) {
 
 	// 判据说明：这些用例**刻意不给 provider**（空串），模拟宿主还没把文件
 	// 归属给任何插件时的判定。给 provider 会让 workbuddy 的
-	// `provider == "freetier"` 兜底把一切都收下，测试就测不出判别力了。
+	// `provider == "freetierplus"` 兜底把一切都收下，测试就测不出判别力了。
 	cases := []struct {
 		name       string
 		fileName   string
@@ -131,7 +131,7 @@ func TestAuthParseVendorOwnershipDiscrimination(t *testing.T) {
 	}
 }
 
-// TestLegacyWorkBuddyAccountNotClaimedByCline 验证安装 FreeTier 2API 前添加的 CodeBuddy/WorkBuddy 账号
+// TestLegacyWorkBuddyAccountNotClaimedByCline 验证安装 FreeTier Plus 前添加的 CodeBuddy/WorkBuddy 账号
 // 不会被 Cline 抢先误吞，且国内版和国际版分别归属到 workbuddycn 和 workbuddyglobal。
 func TestLegacyWorkBuddyAccountNotClaimedByCline(t *testing.T) {
 	installFakeHost(t)

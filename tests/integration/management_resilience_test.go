@@ -196,7 +196,7 @@ func managementCallWithCancel(t *testing.T, method, path string) pluginapi.Manag
 	cancel()
 	raw, errHandle := testApp.HandleMethod(pluginabi.MethodManagementHandle, mustMarshal(pluginapi.ManagementRequest{
 		Method: method,
-		Path:   "/v0/management/plugins/freetier" + path,
+		Path:   "/v0/management/plugins/freetierplus" + path,
 		Headers: http.Header{
 			"X-Host-Callback-Id": []string{testCallbackID},
 		},

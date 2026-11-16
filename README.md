@@ -1,4 +1,4 @@
-# FreeTier 2API Plugin
+# FreeTier Plus Plugin
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![CLIProxyAPI](https://img.shields.io/badge/CLIProxyAPI-Plugin-2496ED?style=flat)](https://github.com/router-for-me/CLIProxyAPI)
@@ -10,7 +10,7 @@
 
 如果这个项目帮到了你，欢迎点个 Star 支持一下。
 
-> **本仓库说明**：上游 `jiandanc/CLIProxyAPI-freetier2api-plugin` 已随作者账号一并从 GitHub 消失（账号与仓库均为 404）。本仓库自 **v0.1.29** 起由 `cxy2730` 接手维护，插件 ID 仍为 `freetier`，已有安装可直接覆盖升级。仓库已从 fork 网络脱离，是独立仓库；完整提交历史保留，`v0.1.44` 及更早的 tag 只存在于归档仓库 `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`，本仓库从 `v0.1.45` 起继续发版。
+> **本仓库说明**：上游 `jiandanc/CLIProxyAPI-freetier2api-plugin` 已随作者账号一并从 GitHub 消失（账号与仓库均为 404）。本仓库自 **v0.1.29** 起由 `cxy2730` 接手维护；自 **v0.1.60** 起插件 ID 改为 `freetierplus`，以便与上游原版在同一 CPA 实例双开共存（原版 ID 仍为 `freetier`）。已有安装如需升级，须改 `config.yaml` 的 `plugins.configs` 键名并重新放置动态库。仓库已从 fork 网络脱离，是独立仓库；完整提交历史保留，`v0.1.44` 及更早的 tag 只存在于归档仓库 `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`，本仓库从 `v0.1.45` 起继续发版。
 
 ## 功能特性
 
@@ -51,18 +51,18 @@
 本插件曾收录于 CLIProxyAPI 官方插件源，但插件源里的条目目前仍指向已失效的原仓库地址，一键安装会失败，待插件源更新后恢复：
 
 1. 打开 CLIProxyAPI 管理面板 → **插件商店**。
-2. 搜索 **FreeTier 2API** 并点击一键安装（条目恢复前请用方式二）。
+2. 搜索 **FreeTier Plus** 并点击一键安装（条目恢复前请用方式二）。
 
 ### 方式二：手动安装 Release 动态库
 
-从 [Releases](https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin/releases) 下载对应平台的归档包，解压后将动态库（`freetier.so` / `freetier.dll`）放入 CPA 插件目录，并在 `config.yaml` 中启用：
+从 [Releases](https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/releases) 下载对应平台的归档包，解压后将动态库（`freetierplus.so` / `freetierplus.dll`）放入 CPA 插件目录，并在 `config.yaml` 中启用：
 
 ```yaml
 plugins:
   enabled: true
   dir: "/path/to/cpa/plugins"
   configs:
-    freetier:
+    freetierplus:
       enabled: true
       enabled_realms: "cn,global"
 ```
@@ -77,7 +77,7 @@ cd CLIProxyAPI-freetier2api-plugin
 ./scripts/build.sh
 ```
 
-编译产物输出至 `dist/freetier.<so|dylib|dll>`。
+编译产物输出至 `dist/freetierplus.<so|dylib|dll>`。
 
 ## 使用方法
 
@@ -86,7 +86,7 @@ cd CLIProxyAPI-freetier2api-plugin
 启动 CLIProxyAPI 后，访问内嵌控制台页面：
 
 ```text
-http://<CPA地址>:8317/v0/resource/plugins/freetier/console
+http://<CPA地址>:8317/v0/resource/plugins/freetierplus/console
 ```
 
 - 点击 **「添加账号 ▾」** 选择对应供应商，按提示在浏览器完成 OAuth 授权或填入 API Key（账号数量不设上限）。
@@ -123,7 +123,7 @@ curl http://localhost:8317/v1/messages \
 
 ## 配置说明
 
-在宿主 `config.yaml` 的 `plugins.configs.freetier` 下可配置以下常用项（大多数运行期设置可直接在控制台页面调整并即时生效）：
+在宿主 `config.yaml` 的 `plugins.configs.freetierplus` 下可配置以下常用项（大多数运行期设置可直接在控制台页面调整并即时生效）：
 
 | 配置键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ curl http://localhost:8317/v1/messages \
 | `codearts_credit_enabled` | bool | `false` | 明确开启 CodeArts 积分推理（消耗账号积分）；默认福利通道，失败不自动切换。修改后刷新模型目录 |
 | `disabled_models` | string / list | 空 | 禁用模型列表（支持 `vendor:model` 或裸名，与控制台勾选合并） |
 | `extra_models` | string | 空 | 额外补充注册的模型名（逗号分隔） |
-| `state_dir` | string | `~/.freetier-plugin` | 状态与缓存目录（若存在 `~/.cli-proxy-api` 则默认使用其下 `freetier` 子目录） |
+| `state_dir` | string | `~/.freetierplus-plugin` | 状态与缓存目录（若存在 `~/.cli-proxy-api` 则默认使用其下 `freetierplus` 子目录） |
 | `log_level` | string | `info` | 日志级别：`debug` / `info` / `error` |
 | `log_to_file` | bool | `false` | 额外把日志写入 `<state_dir>/logs/`，按天分文件 |
 | `log_to_host` | bool | `true` | 把插件日志镜像进宿主 `main.log`，CLIProxyAPI 面板的日志页可直接查看 |

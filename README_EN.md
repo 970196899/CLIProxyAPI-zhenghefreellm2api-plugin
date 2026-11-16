@@ -1,4 +1,4 @@
-# FreeTier 2API Plugin
+# FreeTier Plus Plugin
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![CLIProxyAPI](https://img.shields.io/badge/CLIProxyAPI-Plugin-2496ED?style=flat)](https://github.com/router-for-me/CLIProxyAPI)
@@ -51,18 +51,18 @@ If this project helps you, a Star would mean a lot.
 This plugin was listed in the official CLIProxyAPI plugin registry, but that entry still points at the now-dead original repository, so one-click install fails until the registry is updated:
 
 1. Open the CLIProxyAPI Admin Panel → **Plugin Store**.
-2. Search for **FreeTier 2API** and click Install (use Option 2 until the entry is fixed).
+2. Search for **FreeTier Plus** and click Install (use Option 2 until the entry is fixed).
 
 ### Option 2: Manual Installation from Releases
 
-Download the archive for your platform from [Releases](https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin/releases), extract the shared library (`freetier.so` / `freetier.dylib` / `freetier.dll`) into your CPA plugins directory, and enable it in `config.yaml`:
+Download the archive for your platform from [Releases](https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/releases), extract the shared library (`freetierplus.so` / `freetierplus.dylib` / `freetierplus.dll`) into your CPA plugins directory, and enable it in `config.yaml`:
 
 ```yaml
 plugins:
   enabled: true
   dir: "/path/to/cpa/plugins"
   configs:
-    freetier:
+    freetierplus:
       enabled: true
       enabled_realms: "cn,global"
 ```
@@ -77,7 +77,7 @@ cd CLIProxyAPI-freetier2api-plugin
 ./scripts/build.sh
 ```
 
-The compiled shared library is written to `dist/freetier.<so|dylib|dll>`.
+The compiled shared library is written to `dist/freetierplus.<so|dylib|dll>`.
 
 ## Usage
 
@@ -86,7 +86,7 @@ The compiled shared library is written to `dist/freetier.<so|dylib|dll>`.
 Once CLIProxyAPI is running, open the embedded console:
 
 ```text
-http://<CPA-HOST>:8317/v0/resource/plugins/freetier/console
+http://<CPA-HOST>:8317/v0/resource/plugins/freetierplus/console
 ```
 
 - Click **"添加账号 ▾" (Add Account)**, choose a provider, and complete the browser OAuth flow or enter an API Key (no account cap).
@@ -123,7 +123,7 @@ Aliases are stored in `state.json` under `account_aliases`, keyed by account ide
 
 ## Configuration
 
-Configure under `plugins.configs.freetier` in `config.yaml` (runtime settings can also be toggled live in the web console):
+Configure under `plugins.configs.freetierplus` in `config.yaml` (runtime settings can also be toggled live in the web console):
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -135,7 +135,7 @@ Configure under `plugins.configs.freetier` in `config.yaml` (runtime settings ca
 | `codearts_credit_enabled` | bool | `false` | Explicitly enable credit-billed CodeArts inference; no automatic channel fallback. Refresh models after changing |
 | `disabled_models` | string / list | empty | Disabled models (`vendor:model` or bare name) |
 | `extra_models` | string | empty | Additional model IDs to register (comma-separated) |
-| `state_dir` | string | `~/.freetier-plugin` | State and cache directory |
+| `state_dir` | string | `~/.freetierplus-plugin` | State and cache directory |
 | `log_level` | string | `info` | Log level: `debug` / `info` / `error` |
 | `log_to_file` | bool | `false` | Also write logs to `<state_dir>/logs/`, one file per day |
 | `log_to_host` | bool | `true` | Mirror plugin logs into the host `main.log` so they show up in the CLIProxyAPI panel log page |

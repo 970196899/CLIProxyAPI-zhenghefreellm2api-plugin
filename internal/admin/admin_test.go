@@ -30,7 +30,7 @@ type stubDeps struct {
 }
 
 func (s stubDeps) Identity() Identity {
-	return Identity{ID: "freetier", DisplayName: "FreeTier 2API", ProviderKey: "freetier", Version: "test"}
+	return Identity{ID: "freetierplus", DisplayName: "FreeTier Plus", ProviderKey: "freetierplus", Version: "test"}
 }
 func (s stubDeps) Config() PluginConfig { return DefaultPluginConfig() }
 func (s stubDeps) State() state.State   { return s.store.Snapshot() }
@@ -102,7 +102,7 @@ func TestRegistrationDeclaresRoutes(t *testing.T) {
 	registration := service.Registration()
 	found := false
 	for _, route := range registration.Routes {
-		if route.Path == "/plugins/freetier/status" {
+		if route.Path == "/plugins/freetierplus/status" {
 			found = true
 		}
 	}
@@ -127,7 +127,7 @@ func TestRegistrationDeclaresRoutes(t *testing.T) {
 func TestHandleStatusAndUnknownRoute(t *testing.T) {
 	service := newService(t)
 
-	raw, err := service.Handle([]byte(`{"method":"GET","path":"/v0/management/plugins/freetier/status"}`))
+	raw, err := service.Handle([]byte(`{"method":"GET","path":"/v0/management/plugins/freetierplus/status"}`))
 	if err != nil {
 		t.Fatalf("handle status: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestHandleStatusAndUnknownRoute(t *testing.T) {
 		t.Fatalf("unexpected envelope: %s", raw)
 	}
 
-	raw, err = service.Handle([]byte(`{"method":"GET","path":"/plugins/freetier/nope"}`))
+	raw, err = service.Handle([]byte(`{"method":"GET","path":"/plugins/freetierplus/nope"}`))
 	if err != nil {
 		t.Fatalf("handle unknown: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestHandleStatusAndUnknownRoute(t *testing.T) {
 
 func TestHandleServesConsolePage(t *testing.T) {
 	service := newService(t)
-	raw, err := service.Handle([]byte(`{"method":"GET","path":"/v0/resource/plugins/freetier/console"}`))
+	raw, err := service.Handle([]byte(`{"method":"GET","path":"/v0/resource/plugins/freetierplus/console"}`))
 	if err != nil {
 		t.Fatalf("handle console: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestHandleServesConsolePage(t *testing.T) {
 		t.Fatalf("console status = %d, want 200", envelope.Result.StatusCode)
 	}
 	page := string(envelope.Result.Body)
-	for _, want := range []string{"FreeTier 2API", "view-accounts", "view-settings"} {
+	for _, want := range []string{"FreeTier Plus", "view-accounts", "view-settings"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("console page missing %q", want)
 		}
@@ -230,7 +230,7 @@ func TestHandleAutoAllRoutes(t *testing.T) {
 		return out
 	}
 
-	raw, err := service.Handle([]byte(`{"method":"GET","path":"/plugins/freetier/tasks/autoall/status"}`))
+	raw, err := service.Handle([]byte(`{"method":"GET","path":"/plugins/freetierplus/tasks/autoall/status"}`))
 	if err != nil {
 		t.Fatalf("handle autoall status: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestHandleAutoAllRoutes(t *testing.T) {
 	}
 
 	// 坏 JSON 走解析失败分支（400），证明 POST 路由已挂上；404 就是没挂。
-	raw, err = service.Handle([]byte(`{"method":"POST","path":"/plugins/freetier/tasks/autoall","body":"ew=="}`))
+	raw, err = service.Handle([]byte(`{"method":"POST","path":"/plugins/freetierplus/tasks/autoall","body":"ew=="}`))
 	if err != nil {
 		t.Fatalf("handle autoall start: %v", err)
 	}

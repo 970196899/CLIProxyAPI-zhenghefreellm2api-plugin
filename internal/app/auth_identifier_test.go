@@ -12,7 +12,7 @@ import (
 )
 
 // 面板「OAuth 登录」列表按 oauth_provider 过滤，空则不渲染；
-// 同时 credential_providers 必须认领 type=freetier，否则凭证全掉线。
+// 同时 credential_providers 必须认领 type=freetierplus，否则凭证全掉线。
 func TestAuthIdentifierHidesOAuthButKeepsCredentialProvider(t *testing.T) {
 	a := &App{}
 	raw, err := a.HandleMethod(pluginabi.MethodAuthIdentifier, []byte(`{}`))
@@ -36,8 +36,8 @@ func TestAuthIdentifierHidesOAuthButKeepsCredentialProvider(t *testing.T) {
 	if env.Data.Identifier != "" || len(env.Data.Identifiers) != 0 {
 		t.Fatalf("oauth identifiers must be empty: %s", raw)
 	}
-	if len(env.Data.CredentialProviders) != 1 || env.Data.CredentialProviders[0] != "freetier" {
-		t.Fatalf("credential providers must claim freetier: %s", raw)
+	if len(env.Data.CredentialProviders) != 1 || env.Data.CredentialProviders[0] != "freetierplus" {
+		t.Fatalf("credential providers must claim freetierplus: %s", raw)
 	}
 	// executor / quota 的标识必须保持原样，否则执行器与额度都会找不到插件。
 	for _, m := range []string{pluginabi.MethodExecutorIdentifier, pluginabi.MethodQuotaIdentifier} {
@@ -48,7 +48,7 @@ func TestAuthIdentifierHidesOAuthButKeepsCredentialProvider(t *testing.T) {
 			} `json:"result"`
 		}
 		json.Unmarshal(out, &e)
-		if e.Data.Identifier != "freetier" {
+		if e.Data.Identifier != "freetierplus" {
 			t.Fatalf("%s identifier changed: %s", m, out)
 		}
 	}

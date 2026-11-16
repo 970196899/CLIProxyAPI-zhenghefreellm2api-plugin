@@ -3,6 +3,8 @@ package cline
 import (
 	"strings"
 	"testing"
+
+	"freetier2api-plugin/internal/core"
 )
 
 func TestLooksLikeCredential_Cline(t *testing.T) {
@@ -29,7 +31,7 @@ func TestLooksLikeCredential_Cline(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := LooksLikeCredential(tc.raw, tc.fileName, "freetier"); got != tc.want {
+			if got := LooksLikeCredential(tc.raw, tc.fileName, core.ProviderKey); got != tc.want {
 				t.Fatalf("LooksLikeCredential(%q) = %v, want %v", tc.fileName, got, tc.want)
 			}
 		})

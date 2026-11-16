@@ -25,7 +25,7 @@ CROSS=""
 
 exec docker run --rm \
   -v "$ROOT":/w \
-  -v freetier-gocache:/gocache \
+  -v freetierplus-gocache:/gocache \
   -w /w \
   -e GOCACHE=/gocache \
   -e CGO_ENABLED=1 \

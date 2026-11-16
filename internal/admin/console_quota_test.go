@@ -12,7 +12,7 @@ import (
 )
 
 func TestConsolePageHidesMissingTotal(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"var hasTotal = !!quota.has_total;",
@@ -36,7 +36,7 @@ func TestConsolePageHidesMissingTotal(t *testing.T) {
 // !quota.ok 时只渲染「-- / --」，用户拿到的信息与「上游没有额度接口」没有
 // 区别，无法判断该重新授权还是稍后再查。横幅也只报一个失败计数。
 func TestConsolePageShowsQuotaFailureReason(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		`var reason = quota.message || "额度查询失败";`,
@@ -59,7 +59,7 @@ func TestConsolePageShowsQuotaFailureReason(t *testing.T) {
 // 上游在授予生效前不建额度桶，这部分进不了 remain / total；页面若不单独显示，
 // 用户领到的几亿在账号表上没有任何痕迹，只能以为没到账。
 func TestConsolePageShowsPendingGrant(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		`if (metrics[i] && metrics[i].key === "pending") return metrics[i].value;`,

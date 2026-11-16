@@ -38,7 +38,7 @@ var unwrapRe = regexp.MustCompile(`\.result\s*[;,)\n]`)
 // 密钥由公开值派生，所以同源页面能解出来。这里断言页面确实实现了这套算法
 // （算法细节若与面板不一致，用户会看到 401 且原因极难定位）。
 func TestConsolePageDecodesPanelKey(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	// 混淆格式与快照字段必须与面板一致。
 	for _, literal := range []string{
@@ -106,7 +106,7 @@ func TestConsolePagePanelKeyRoundTrip(t *testing.T) {
 	if errLook != nil {
 		t.Skip("node 不可用，跳过页面密钥算法的交叉验证")
 	}
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	start := strings.Index(page, "var PANEL_STORE_KEY")
 	end := strings.Index(page, "// managementKey 返回当前生效的管理密钥。")
 	if start < 0 || end <= start {
@@ -242,7 +242,7 @@ func encodePanelPayload(payload, keyText string) string {
 //  2. 有密钥 → 只发一个探针，成功才加载首屏，且首屏串行；
 //  3. 任一 401/403 → 立刻停掉全部自动刷新与轮询定时器。
 func TestConsolePageNeverCallsWithoutKey(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	// 1) api() 闸门：未认证/已失效不出网，没有密钥也不出网。
 	for _, literal := range []string{
@@ -289,7 +289,7 @@ func TestConsolePageNeverCallsWithoutKey(t *testing.T) {
 // 之间的 RPC 格式，不会到达前端。若页面再剥一层 "result"，所有业务字段都会
 // 变成 undefined——表现就是「接口 200 但界面全空」，且极难定位。
 func TestConsolePageDoesNotUnwrapHostBody(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	// 注意用正则精确匹配：字符串包含 "data.result" 也会命中 "data.results"（合法字段）。
 	if unwrapRe.MatchString(page) {
@@ -316,10 +316,10 @@ func TestConsolePageDoesNotUnwrapHostBody(t *testing.T) {
 //
 // 页面必须走这两个端点（而不是插件自己的路由），否则「添加账号」不可用。
 func TestConsolePageWiresHostOAuthLogin(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
-		"/freetier-auth-url", // 与 providerKey 拼接，宿主按此匹配 auth provider
+		"/freetierplus-auth-url", // 与 providerKey 拼接，宿主按此匹配 auth provider
 		"get-auth-status",    // 宿主提供的状态轮询端点
 		`id="addVendorMenu"`, // 供应商下拉菜单（替代原先的两个固定按钮）
 		`id="btnAddAccount"`, // 添加账号入口
@@ -332,11 +332,11 @@ func TestConsolePageWiresHostOAuthLogin(t *testing.T) {
 	}
 	// 这两个接口在**宿主根路径**下（/v0/management/<provider>-auth-url），
 	// 不能带插件前缀：宿主按路径提取 provider，带前缀会得到
-	// "plugins/freetier/workbuddy"，校验失败直接 404。
+	// "plugins/freetierplus/workbuddy"，校验失败直接 404。
 	if !strings.Contains(page, "hostPath(") {
 		t.Fatal("host-level OAuth endpoints must not be prefixed with the plugin path")
 	}
-	if strings.Contains(page, `api("GET", "/freetier-auth-url`) {
+	if strings.Contains(page, `api("GET", "/freetierplus-auth-url`) {
 		t.Fatal("auth-url must go through hostPath() (the host extracts the provider from the path)")
 	}
 	if !strings.Contains(page, `var HOST_MGMT = "/v0/management"`) {
@@ -357,7 +357,7 @@ func TestConsolePageWiresHostOAuthLogin(t *testing.T) {
 //
 // 标签页会把额度、模型、任务藏起来，管理页应当一眼看全。
 func TestConsolePageIsSingleScrollLayout(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	// 不应再有导航与视图切换。
 	for _, forbidden := range []string{"<nav>", "data-view=", "switchView", `id="view-accounts" hidden`} {
@@ -403,7 +403,7 @@ func TestConsolePageIsSingleScrollLayout(t *testing.T) {
 // CPA 按客户端 IP 统计管理鉴权失败次数，连续失败会封禁该 IP
 // （连正确密钥也会被拒），因此必须停。
 func TestConsolePageStopsPollingOnAuthFailure(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	if !strings.Contains(page, "haltOnAuthFailure") {
 		t.Fatal("console page must stop polling on auth failure to avoid an IP ban")
 	}
@@ -416,7 +416,7 @@ func TestConsolePageStopsPollingOnAuthFailure(t *testing.T) {
 //
 // 资源页不做管理鉴权，因此页面本身绝不能带账号或令牌。
 func TestConsolePageIsStaticAndSelfContained(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, forbidden := range []string{"accessToken", "refreshToken", "device_token", "Authorization: Bearer sk-"} {
 		if strings.Contains(page, forbidden) {
@@ -440,7 +440,7 @@ func TestConsolePageIsStaticAndSelfContained(t *testing.T) {
 // 时间沿用已存值，排程沿用默认值，保存时不提交这两个字段，后端对缺省
 // 字段不做改动，因此不会清掉既有配置。
 func TestSettingsKeepsOnlyTwoToggles(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, marker := range []string{
 		`id="setAutoCheckin"`,
@@ -480,7 +480,7 @@ func TestSettingsKeepsOnlyTwoToggles(t *testing.T) {
 // 的部分会被后续卡片的内容盖住，尾部渠道永远看不到也滚不到。这里锁住三件
 // 事：限高 + 纵向滚动、展开时抬升所在卡片、两个下拉都走同一个抬升函数。
 func TestVendorMenuShowsAllVendors(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, marker := range []string{
 		"min-width: 210px; max-height: min(72vh, 560px)",
@@ -508,7 +508,7 @@ func TestVendorMenuShowsAllVendors(t *testing.T) {
 // 锁住三件事：折叠块存在、提交按钮存在、请求打的是插件自有路由（不能是宿主路由
 // ——宿主没有这个端点，打过去只会 404）。
 func TestConsolePageWiresLoginCallbackPasteBox(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	for _, marker := range []string{
 		`id="loginPasteBox"`,
 		`id="loginPasteUrl"`,
@@ -530,7 +530,7 @@ func TestConsolePageWiresLoginCallbackPasteBox(t *testing.T) {
 // 「查询中…」，而正确展示是「-- / --」。因此分支必须读后端给的能力标志
 // supports_quota，而不是靠结果是否存在反推。
 func TestConsoleQuotaCellUsesCapability(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	if !strings.Contains(page, "account.supports_quota") {
 		t.Fatal("quota cell must branch on account.supports_quota")
@@ -555,12 +555,12 @@ func TestConsoleQuotaCellUsesCapability(t *testing.T) {
 // 会变化的键（config_reloaded_at）。页面不得再显示「重启 CPA 生效」的提示条，
 // 也不得提供手动重载按钮——变更是自动同步的。
 func TestConsoleModelChangesTriggerHostReload(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"syncModelConfig",                      // 同步入口
 		"config_reloaded_at",                   // 制造配置内容变化的键
-		`hostPath("/plugins/freetier/config")`, // 宿主插件配置路由
+		`hostPath("/plugins/freetierplus/config")`, // 宿主插件配置路由
 		`api("PATCH", configPath`,              // 浅合并写配置，触发宿主重载
 	} {
 		if !strings.Contains(page, literal) {
@@ -590,7 +590,7 @@ func TestConsoleModelChangesTriggerHostReload(t *testing.T) {
 // 按钮必须 POST /models/refresh 去上游拉一次，失败时把上游错误显示出来——
 // 401 与超时的处理方式完全不同，藏进日志等于让用户自己猜。
 func TestConsoleLoadModelsButtonRefreshesUpstream(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		`api("POST", "/models/refresh"`, // 真正触发上游拉取
@@ -609,7 +609,7 @@ func TestConsoleLoadModelsButtonRefreshesUpstream(t *testing.T) {
 // TestConsoleModelTableMergesIDAndCredits 锁定模型表的列重构：
 // 「模型 ID」与「别名」合并为一列，原「别名」位置改为「费用倍率」。
 func TestConsoleModelTableMergesIDAndCredits(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"MODEL_COLUMNS",    // 表头与单元格同源的列描述表
@@ -651,13 +651,13 @@ func TestConsoleModelTableMergesIDAndCredits(t *testing.T) {
 // TestConsoleModelOptionalColumnsHiddenByDefault 锁定「输出上限/推理档位/能力」
 // 可切换且默认显隐符合规范，偏好按浏览器持久化。
 func TestConsoleModelOptionalColumnsHiddenByDefault(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		`id="btnModelCols"`,
 		`id="modelColsMenu"`,
 		"cols-setter",
-		`"freetier-model-optional-columns"`,
+		`"freetierplus-model-optional-columns"`,
 		"localStorage.getItem(MODEL_COLUMNS_STORE_KEY)",
 		"localStorage.setItem(MODEL_COLUMNS_STORE_KEY",
 		"function readColumnPrefs()",
@@ -699,7 +699,7 @@ func TestConsoleModelOptionalColumnsHiddenByDefault(t *testing.T) {
 }
 
 func TestConsolePageSettingsLabels(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	for _, required := range []string{
 		"每日自动签到",
 		// 开关只影响签到后的两个后续任务，标签必须写清范围，不能叫「每日自动任务」。
@@ -726,7 +726,7 @@ func TestConsolePageSettingsLabels(t *testing.T) {
 // 必须只有 editableCell 一份：复制第二份意味着键盘行为、回退策略、错误提示
 // 迟早分叉。账号别名按账号身份 file_id 提交，不用昵称/邮箱。
 func TestConsoleAccountAliasReusesInlineEditor(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"function editableCell(opts)", // 共用编辑器
@@ -750,7 +750,7 @@ func TestConsoleAccountAliasReusesInlineEditor(t *testing.T) {
 // 点开编辑框时预填当前生效名称（与模型别名一致），留空或填回原名称都视为
 // 「不设别名」，不会在 state 里留一条与上游同名的副本。
 func TestConsoleAccountAliasPrefillsCurrentName(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"function accountOriginalName(account)",
@@ -766,7 +766,7 @@ func TestConsoleAccountAliasPrefillsCurrentName(t *testing.T) {
 // TestConsoleAccountsTableSupportsBatchSelection 锁定账号表的批量操作接线：
 // 勾选列在首位、状态列在供应商列左侧、操作列已移除（删除改到顶部按钮）。
 func TestConsoleAccountsTableSupportsBatchSelection(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		`["", "状态", "供应商", "账号", "签到", "剩余 / 总额", "剩余率", "刷新时间"]`,
@@ -794,7 +794,7 @@ func TestConsoleAccountsTableSupportsBatchSelection(t *testing.T) {
 // 横幅只显示几秒钟，失败账号与报错原文必须能在页面上事后回溯；历史入口挂在
 // 每个账号自己的签到列上（同一张表、同一份 /status 数据，不再发额外请求）。
 func TestConsolePageShowsCheckinHistory(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
 		"account.checkin_history",      // 历史来自 /status 的账号条目
@@ -810,7 +810,7 @@ func TestConsolePageShowsCheckinHistory(t *testing.T) {
 
 // 福利领取合并在既有签到入口，页面不应按供应商硬编码新按钮。
 func TestConsoleBenefitsUseExistingCheckinEntry(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	if strings.Contains(page, `account.vendor_id === "codearts"`) || strings.Contains(page, `"领取每日福利"`) {
 		t.Fatal("benefits must use the shared check-in flow")
 	}
@@ -830,7 +830,7 @@ func TestConsoleBenefitsUseExistingCheckinEntry(t *testing.T) {
 // TestConsoleAccountAndModelStatusLabels 锁定控制台账号与模型列表的状态与操作文案及排序：
 // 正常 -> 启用，禁用/已禁用 -> 停用，批量按钮为「停用选中」，移除旧提示，且账号列表按「启用在上停用在下」排序。
 func TestConsoleAccountAndModelStatusLabels(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, want := range []string{
 		`<button class="act" id="btnDisableAccounts">停用选中</button>`,
@@ -867,7 +867,7 @@ func TestConsoleAccountAndModelStatusLabels(t *testing.T) {
 // TestConsoleAutoAllCoversEveryAccount 锁定「一键任务」的语义：
 // 未勾选时提交全部渠道的全部账号，进度用快照轮询，结果只按上游 message 汇总。
 func TestConsoleAutoAllCoversEveryAccount(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 
 	for _, want := range []string{
 		`<button class="act" id="btnAutoAll">一键任务</button>`,

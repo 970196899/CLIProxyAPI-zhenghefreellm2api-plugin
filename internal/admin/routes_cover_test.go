@@ -17,7 +17,7 @@ var consoleAPICall = regexp.MustCompile(`api\(\s*"([A-Za-z]+)"\s*,\s*"([^"$+]*)"
 func TestConsoleCallsAreRegisteredRoutes(t *testing.T) {
 	// 页面已拆成 page/*.html 片段，这里读拼接后的整页：正则跨片段也能匹配，
 	// 且断言的是「用户实际拿到的那份页面」，不会漏掉某个片段里的调用。
-	raw := []byte(Page("/plugins/freetier"))
+	raw := []byte(Page("/plugins/freetierplus"))
 	service := newService(t)
 	id := service.deps.Identity()
 

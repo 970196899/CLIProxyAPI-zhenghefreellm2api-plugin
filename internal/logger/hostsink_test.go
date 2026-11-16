@@ -36,7 +36,7 @@ func TestFormatHostLineMatchesHostLayout(t *testing.T) {
 	now := time.Date(2026, 11, 2, 12, 26, 41, 0, time.Local)
 
 	got := formatHostLine(now, "INFO", "已解析授权")
-	want := "[2026-11-02 12:26:41] [--------] [info ] [freetier.go:0] [freetier] 已解析授权\n"
+	want := "[2026-11-02 12:26:41] [--------] [info ] [freetierplus.go:0] [freetierplus] 已解析授权\n"
 	if got != want {
 		t.Fatalf("info 行格式不符\n got=%q\nwant=%q", got, want)
 	}
@@ -128,7 +128,7 @@ func TestHostSinkReopensAfterRotation(t *testing.T) {
 // TestResolveHostLogFilePrefersAuthsLayout 断言优先命中 auths 子目录布局。
 func TestResolveHostLogFilePrefersAuthsLayout(t *testing.T) {
 	base := t.TempDir()
-	stateDir := filepath.Join(base, ".freetier-plugin")
+	stateDir := filepath.Join(base, ".freetierplus-plugin")
 	if errMk := os.MkdirAll(stateDir, 0o700); errMk != nil {
 		t.Fatalf("建状态目录失败：%v", errMk)
 	}
@@ -149,7 +149,7 @@ func TestResolveHostLogFilePrefersAuthsLayout(t *testing.T) {
 // TestResolveHostLogFileEmptyWhenMissing 断言两种布局都不存在时返回空。
 func TestResolveHostLogFileEmptyWhenMissing(t *testing.T) {
 	base := t.TempDir()
-	stateDir := filepath.Join(base, ".freetier-plugin")
+	stateDir := filepath.Join(base, ".freetierplus-plugin")
 	if errMk := os.MkdirAll(stateDir, 0o700); errMk != nil {
 		t.Fatalf("建状态目录失败：%v", errMk)
 	}
@@ -195,7 +195,7 @@ func TestLogMirrorsIntoHostFile(t *testing.T) {
 	if !strings.Contains(text, "端到端镜像 ok") {
 		t.Fatalf("Info 没镜像进宿主日志：%q", text)
 	}
-	if !strings.Contains(text, "[freetier.go:0] [freetier]") {
+	if !strings.Contains(text, "[freetierplus.go:0] [freetierplus]") {
 		t.Fatalf("镜像行缺少来源段：%q", text)
 	}
 }

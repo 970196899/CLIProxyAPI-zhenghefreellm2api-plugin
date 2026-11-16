@@ -79,3 +79,37 @@ func TestResolveAuthPathNormalizesHostPath(t *testing.T) {
 		})
 	}
 }
+
+// TestCoexistenceAuthListKeepsCurrentClaimBehavior 锁定双开共存时的凭证列出行为。
+//
+// 背景：本插件改名为 freetierplus 后，与原版 freetier 同时加载时，
+// 同一份 workbuddy*-*.json 对两个插件都满足「文件名属于本插件」的第二层判据。
+// 这是**既有的容错设计**（见 filterPluginAuths 的说明：兜住被前置插件抢走、
+// provider 被兜底改写的凭证），不是本次改造引入的行为。本用例钉死：
+//   - provider=freetierplus 的条目被收下（第一层判据）；
+//   - provider=freetier（原版插件写的）但文件名是 workbuddy* 的条目**仍被收下**
+//     （第二层判据，与改造前一致——不得因 ProviderKey 改名而改变）；
+//   - 别家的文件名（qoder-login-*）在任何情况下都不收。
+func TestCoexistenceAuthListKeepsCurrentClaimBehavior(t *testing.T) {
+	registry := core.NewRegistry()
+	entries := filterPluginAuths([]core.HostAuth{
+		{Name: "workbuddycn-u1.json", Provider: core.ProviderKey, AuthIndex: "1"},
+		{Name: "workbuddycn-u2.json", Provider: "freetier", AuthIndex: "2"},
+		{Name: "qoder-login-f34c07f7.json", Provider: "freetier", AuthIndex: "3"},
+		{Name: "claude-1.json", Provider: "anthropic", AuthIndex: "4"},
+	}, registry)
+
+	got := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		got[entry.Name] = true
+	}
+	if !got["workbuddycn-u1.json"] {
+		t.Fatal("本插件自己的凭证必须被列出")
+	}
+	if !got["workbuddycn-u2.json"] {
+		t.Fatal("原版插件写入、但文件名属于本插件约定的凭证必须仍被列出（第二层判据不得因改名失效）")
+	}
+	if got["qoder-login-f34c07f7.json"] || got["claude-1.json"] {
+		t.Fatalf("别家凭证泄漏：%+v", entries)
+	}
+}

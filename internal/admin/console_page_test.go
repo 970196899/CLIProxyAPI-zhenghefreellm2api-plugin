@@ -22,7 +22,7 @@ func TestPageAssemblesAllFragments(t *testing.T) {
 	if len(names) != 9 {
 		t.Fatalf("页面片段数量为 %d，期望 9（新增/删除片段请同步更新本断言）", len(names))
 	}
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	previous := -1
 	for _, name := range names {
 		raw, errRead := fs.ReadFile(pageFS, name)
@@ -45,7 +45,7 @@ func TestPageAssemblesAllFragments(t *testing.T) {
 
 // TestPageStructureIsComplete 验证整页骨架完整、base path 已注入。
 func TestPageStructureIsComplete(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	if !strings.HasPrefix(page, "<!DOCTYPE html>") {
 		t.Fatal("整页没有以 <!DOCTYPE html> 开头：首个片段缺失或顺序错位")
 	}
@@ -56,7 +56,7 @@ func TestPageStructureIsComplete(t *testing.T) {
 		t.Fatal("整页里仍残留 __BASE__ 占位符：base path 没有替换干净")
 	}
 	// 页面里 MGMT 是 "/v0/management" + BASE 拼出来的，断言两段都在即可。
-	if !strings.Contains(page, `var MGMT = "/v0/management" + BASE`) || !strings.Contains(page, `var BASE = "/plugins/freetier"`) {
+	if !strings.Contains(page, `var MGMT = "/v0/management" + BASE`) || !strings.Contains(page, `var BASE = "/plugins/freetierplus"`) {
 		t.Fatal("管理接口前缀没有注入正确的 base path")
 	}
 	// 脚本只有一段：拆分是「文件级」，不是「多 <script> 标签」，避免重复的
@@ -71,7 +71,7 @@ func TestPageStructureIsComplete(t *testing.T) {
 
 // TestPageKeepsCriticalEntryPoints 验证关键函数没在拆分中丢失。
 func TestPageKeepsCriticalEntryPoints(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	for _, literal := range []string{
 		"function api(",
 		"function loadStatus(",
@@ -92,7 +92,7 @@ func TestPageKeepsCriticalEntryPoints(t *testing.T) {
 // 没有超时的表现不是「慢」而是「假死」：请求挂住时调用方永远停在「查询中…」，
 // 页面既不报错也不重试。这条断言把两档超时与中断翻译都钉住。
 func TestPageHasRequestTimeout(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	for _, literal := range []string{
 		"var API_TIMEOUT_MS = 60000",
 		"var API_SLOW_TIMEOUT_MS = 240000",
@@ -115,7 +115,7 @@ func TestPageHasRequestTimeout(t *testing.T) {
 // rethrow 会让下游 catch 再弹一次同样的横幅，而顶层没人接这个 rejection，
 // 控制台只会多一条 unhandled rejection。
 func TestPageReportsErrorsOnce(t *testing.T) {
-	page := Page("/plugins/freetier")
+	page := Page("/plugins/freetierplus")
 	if strings.Contains(page, `banner("err", err.message); throw err;`) {
 		t.Fatal("页面里仍有「报错后 rethrow」的写法，会重复报错")
 	}

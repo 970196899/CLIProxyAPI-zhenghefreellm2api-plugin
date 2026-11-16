@@ -45,7 +45,6 @@ func TestPluginIdentityIsFreeTierPlus(t *testing.T) {
 var residueAllowed = map[string]string{
 	"internal/vendors/autoclaw/chat.go": "上游请求指纹头 x_trace_id",
 }
-
 // residueLineAllowed 判定某行是否属于「合法残留」。调用方已剔除模块路径与新身份
 // （freetier2api-plugin / freetierplus），因此进入本函数的行里出现的 freetier
 // 一定是需要裁决的形态。
@@ -56,6 +55,11 @@ func residueLineAllowed(rel string, line string) bool {
 	// opencodezen 的免费层语义（isFreeTierModel / prepareFreeTierBody /
 	// FreeTierError / free tier）全部合法。
 	if strings.HasPrefix(rel, "internal/vendors/opencodezen/") {
+		return true
+	}
+	// 双开共存回归测试刻意写出原版 ID 来断言「原版凭证仍被正确处置」：
+	// 这里的 freetier 是**被测对象**，不是身份残留。
+	if rel == "internal/hostbridge/auth_test.go" {
 		return true
 	}
 	// README 的双开说明里会提到原版 ID：只允许显式标注「原版 / original」的行。
