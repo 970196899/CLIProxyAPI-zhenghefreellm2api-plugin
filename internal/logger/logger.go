@@ -103,7 +103,7 @@ func InitFile(enabled bool, dir string) error {
 
 	if fileSink != nil {
 		if errClose := fileSink.Close(); errClose != nil {
-			fmt.Fprintf(os.Stderr, "[freetier] close log file failed: %v\n", errClose)
+			fmt.Fprintf(os.Stderr, "[freetierplus] close log file failed: %v\n", errClose)
 		}
 		fileSink = nil
 		fileDay = ""
@@ -122,7 +122,7 @@ func InitFile(enabled bool, dir string) error {
 // openLogFileLocked 打开当天的日志文件。调用方必须持有 fileMu。
 func openLogFileLocked(now time.Time) error {
 	day := now.Format("2006-01-02")
-	path := filepath.Join(fileDir, "freetier-"+day+".log")
+	path := filepath.Join(fileDir, "freetierplus-"+day+".log")
 	file, errOpen := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if errOpen != nil {
 		return fmt.Errorf("open log file %s: %w", path, errOpen)
@@ -141,7 +141,7 @@ func pruneLogFiles(dir string) {
 	cutoff := time.Now().AddDate(0, 0, -fileRetentionDays)
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "freetier-") {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "freetierplus-") {
 			continue
 		}
 		info, errInfo := entry.Info()
@@ -205,7 +205,7 @@ func log(lvl Level, label string, format string, args ...any) {
 		// 跨天时先切文件再写。
 		if day := now.Format("2006-01-02"); day != fileDay {
 			if errRotate := openLogFileLocked(now); errRotate != nil {
-				fmt.Fprintf(os.Stderr, "[freetier] rotate log file failed: %v\n", errRotate)
+				fmt.Fprintf(os.Stderr, "[freetierplus] rotate log file failed: %v\n", errRotate)
 			}
 		}
 		if fileSink != nil {

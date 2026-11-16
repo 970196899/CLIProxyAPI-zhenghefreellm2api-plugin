@@ -107,8 +107,12 @@ func TestNoResidualFreeTierIdentity(t *testing.T) {
 		for index, line := range strings.Split(string(raw), "\n") {
 			// 先剔除 Go 模块路径与新身份：freetierplus 本身含 freetier 前缀，
 			// 不剔掉它会把所有正确写法判成残留。
+			// 大小写三种形态都要剔（freetierplus / FreeTierPlus / FreeTier Plus），
+			// 否则显示名「FreeTier Plus」会被误判。
 			stripped := strings.ReplaceAll(line, "freetier2api-plugin", "")
-			stripped = strings.ReplaceAll(stripped, "freetierplus", "")
+			for _, identity := range []string{"freetierplus", "FreeTierPlus", "FreeTier Plus", "FREETIERPLUS"} {
+				stripped = strings.ReplaceAll(stripped, identity, "")
+			}
 			if !residue.MatchString(stripped) {
 				continue
 			}

@@ -35,7 +35,7 @@
 
   // 偏好存为对象映射 { [colKey]: boolean }：
   // 缺省时按各列的 defaultShow 处理，具备自然扩展性与向后兼容性。
-  var MODEL_COLUMNS_STORE_KEY = "freetier-model-optional-columns";
+  var MODEL_COLUMNS_STORE_KEY = "freetierplus-model-optional-columns";
   var columnPrefs = readColumnPrefs();
   var creditsSortOrder = null; // null | "asc" | "desc"
 
@@ -320,7 +320,7 @@
     modelSyncTimer = null;
     if (modelSyncRunning) { modelSyncPending = true; return; }
     modelSyncRunning = true;
-    var configPath = hostPath("/plugins/freetier/config");
+    var configPath = hostPath(BASE + "/config");
     api("GET", configPath).then(function (config) {
       // GET 返回的可能是空对象（该插件段尚未落过自定义配置），补成对象再合并。
       var body = (config && typeof config === "object") ? config : {};

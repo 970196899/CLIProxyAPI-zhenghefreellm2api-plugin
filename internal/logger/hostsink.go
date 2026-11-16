@@ -137,7 +137,7 @@ func (h *hostSink) noteOnce(err error) {
 		return
 	}
 	h.warned = true
-	fmt.Fprintf(os.Stderr, "[freetier] 宿主日志镜像不可用（%s）：%v\n", h.path, err)
+	fmt.Fprintf(os.Stderr, "[freetierplus] 宿主日志镜像不可用（%s）：%v\n", h.path, err)
 }
 
 // readyLocked 确保 sink 可用，顺带处理宿主轮转。调用方必须持有 host.mu。
@@ -204,6 +204,6 @@ func closeHost() {
 // 级别名右补空格到 5 字符（宿主输出 "[warn ]"、"\[info ]"），
 // 请求 ID 段在没有上下文时用 "--------" 占位，来源段用插件包名。
 func formatHostLine(now time.Time, label string, message string) string {
-	return fmt.Sprintf("[%s] [--------] [%-5s] [freetier.go:0] [freetier] %s\n",
+	return fmt.Sprintf("[%s] [--------] [%-5s] [freetierplus.go:0] [freetierplus] %s\n",
 		now.Format("2006-01-02 15:04:05"), strings.ToLower(label), message)
 }

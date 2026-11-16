@@ -318,10 +318,10 @@
       document.getElementById("btnSubmitCallback").disabled = false;
     }
 
-    // 供应商经 metadata 传给插件：宿主按路径解析 provider（/freetier-auth-url），
+    // 供应商经 metadata 传给插件：宿主按路径解析 provider（/freetierplus-auth-url），
     // 插件再按 vendor 参数选具体供应商实例。路径里不能带 vendor——
     // 宿主会把它当成 provider 名去校验，直接 404。
-    api("GET", hostPath("/freetier-auth-url?vendor=" + encodeURIComponent(vendor.id))).then(function (data) {
+    api("GET", hostPath("/freetierplus-auth-url?vendor=" + encodeURIComponent(vendor.id))).then(function (data) {
       if (!data || !data.url) {
         status.textContent = "获取授权链接失败：" + ((data && data.error) || "响应缺少 url");
         return;

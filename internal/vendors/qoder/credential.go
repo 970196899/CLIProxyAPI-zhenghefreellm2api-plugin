@@ -459,7 +459,7 @@ const (
 	// embeddedIdentityTTL 是内存缓存寿命，比官方 CLI 的 1 小时刷新稍短。
 	embeddedIdentityTTL = 55 * time.Minute
 	// embeddedIdentityDir 是解包目录名，放在用户缓存目录下。
-	embeddedIdentityDir = "freetier"
+	embeddedIdentityDir = "freetierplus"
 )
 
 // embeddedAssets 持有三个平台的官方组件，按当前平台挑一份用。
