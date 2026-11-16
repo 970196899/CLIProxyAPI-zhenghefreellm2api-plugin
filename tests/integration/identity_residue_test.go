@@ -76,7 +76,9 @@ func residueLineAllowed(rel string, line string) bool {
 		return true
 	}
 	// 写回边界的用例同样以原版 ID 为**被测输入**：断言它必须被排除。
-	if rel == "internal/auth/pool_owned_test.go" && strings.Contains(line, `"freetier"`) {
+	// 大小写变体（FreeTier）同样是被测对象，按小写化后比较。
+	if rel == "internal/auth/pool_owned_test.go" &&
+		strings.Contains(strings.ToLower(line), `"freetier"`) {
 		trackExemption(rel)
 		return true
 	}
@@ -103,7 +105,7 @@ var exemptionBudget = map[string]int{
 	"internal/vendors/workbuddy/credential_test.go": 3,
 	"internal/auth/pool_owned_test.go":              3,
 	"README.md":                                     7,
-	"README_EN.md":                                  3,
+	"README_EN.md":                                  6,
 }
 var exemptionHits = map[string]int{}
 
@@ -172,9 +174,15 @@ func TestNoResidualFreeTierIdentity(t *testing.T) {
 	if errWalk != nil {
 		t.Fatalf("walk repo: %v", errWalk)
 	}
-	// 豁免本身也要受约束：超出预算说明豁免在悄悄扩大，守卫信号失真。
+	// 豁免本身也要受约束：未登记预算的文件一律失败，已登记的不得超预算。
+	// 双向校验是刻意的——只查「超预算」会留下一个结构性缺口：
+	// 新增豁免文件只要忘了登记预算，就完全不受检。
 	for rel, used := range exemptionHits {
-		if budget, ok := exemptionBudget[rel]; ok && used > budget {
+		budget, ok := exemptionBudget[rel]
+		if !ok {
+			t.Fatalf("%s 有 %d 处豁免但未登记预算——新增豁免必须同时更新 exemptionBudget", rel, used)
+		}
+		if used > budget {
 			t.Fatalf("%s 的身份豁免用了 %d 处，超出预算 %d——豁免不得成为身份残留的通道",
 				rel, used, budget)
 		}

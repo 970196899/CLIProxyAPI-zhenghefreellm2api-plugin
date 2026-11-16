@@ -658,6 +658,9 @@ func (s *Service) runForAccounts(
 	loaded, failures := s.pool.Load(ctx, callbackID, auth.Options{
 		Targets:       targets,
 		EnabledRealms: cfg.EnabledRealms,
+		// 签到等动作会打到上游并写回凭证：双开时必须排除原版插件的账号，
+		// 否则会以本插件的设备指纹代签对方的账号。
+		OwnedOnly: true,
 		Filter: func(account auth.Account) bool {
 			return filter == nil || filter(account.Vendor, account.Credential)
 		},

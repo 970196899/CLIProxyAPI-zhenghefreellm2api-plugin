@@ -105,27 +105,17 @@ type Options struct {
 	Filter          func(Account) bool
 	EnabledRealms   []string
 	IncludeDisabled bool
-	// OwnedOnly 只保留 provider 明确属于本插件的条目。
+	// OwnedOnly 只保留本插件自己的账号。
 	//
-	// 用于**写回**链路（保活、自动任务、单账号操作）：ListAuths 会按文件名
+	// 用于**写回**链路（保活、自动任务、401 刷新）：ListAuths 会按文件名
 	// 兜底收下「provider 被前置插件抢走」的凭证，这是列表展示必需的容错；
 	// 但写回链路若复用同一份清单，双开时会把原版插件的账号也拿来续期改写，
-	// 两个插件共用 refresh token 各自轮换，可能互相把对方刷失效。
+	// 两个插件各自轮换同一份 refresh token，可能互相把对方刷失效。
 	//
-	// provider 为空表示宿主没填，不是「属于别家」的证据，仍保留。
+	// 判据用凭证内容的 type 而不是 provider：provider 无法区分「对方插件的
+	// 凭证」与「被前置插件抢走的本方凭证」（两者 provider 都可能是别家值），
+	// 只有 type 能区分。详见 credentialOwnedByType。
 	OwnedOnly bool
-}
-
-// ownedByPlugin 报告凭证是否明确属于本插件。
-//
-// 只判「provider 非空且不是本插件 key」这一种明确的否定：provider 为空时
-// 归因不明，不能据此把用户的账号排除在外。
-func ownedByPlugin(entry core.HostAuth) bool {
-	provider := strings.TrimSpace(entry.Provider)
-	if provider == "" {
-		return true
-	}
-	return strings.EqualFold(provider, core.ProviderKey)
 }
 
 // Load 返回可用账号与失败条目；按 credential FileID 去重。
@@ -145,9 +135,6 @@ func (p *Pool) Load(ctx context.Context, callbackID string, opts Options) ([]Acc
 	seen := map[string]bool{}
 	vendorCounts := map[string]int{}
 	for _, entry := range entries {
-		if opts.OwnedOnly && !ownedByPlugin(entry) {
-			continue
-		}
 		if !opts.IncludeDisabled && !entry.Usable() {
 			continue
 		}
@@ -157,6 +144,11 @@ func (p *Pool) Load(ctx context.Context, callbackID string, opts Options) ([]Acc
 		raw, filePath, okRaw := p.loadAuthJSON(ctx, callbackID, entry)
 		if !okRaw || len(raw) == 0 {
 			failures = append(failures, Failure{Entry: entry, Message: "凭证读取失败"})
+			continue
+		}
+		// 写回链路的归属门禁：按凭证内容的 type 判定，不能用 provider
+		// （provider 区分不开「对方插件的凭证」与「被前置插件抢走的本方凭证」）。
+		if opts.OwnedOnly && !core.CredentialOwnedByType(raw) {
 			continue
 		}
 		credential, vendor, errResolve := p.Resolve(ctx, callbackID, raw, hostbridge.AccountIdentity(entry), nil)

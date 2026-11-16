@@ -141,6 +141,9 @@ func safeAuthFilePath(registry *core.Registry, entry core.HostAuth, raw []byte, 
 	if !okFile || !sameCredentialIdentity(hostCred, fileCred) {
 		return "", fmt.Errorf("目标文件属于另一个账号，拒绝删除：%s", filepath.Base(target))
 	}
+	if !core.CredentialOwnedByType(raw) {
+		return "", fmt.Errorf("该凭证属于原版插件（type 不是本插件标识），拒绝改动：%s", filepath.Base(target))
+	}
 	return target, nil
 }
 

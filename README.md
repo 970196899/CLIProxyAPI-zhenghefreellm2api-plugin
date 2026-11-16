@@ -152,7 +152,7 @@ curl http://localhost:8317/v1/messages \
 4. **WorkBuddy 设备指纹会变**：状态目录从原版的 `~/.freetier-plugin` 变为 `~/.freetierplus-plugin`，其中的 `machine_salt` 文件会重新生成，WorkBuddy 的 `X-Machine-ID` 随之改变，上游会视为「同一账号、新设备」。若想保留原指纹，二选一：
    - 在 `config.yaml` 的 `plugins.configs.freetierplus` 下填 `machine_salt: <原值>`（该覆盖键优先于文件）；
    - 或把旧状态目录里的 `machine_salt` 文件复制到新状态目录（文件名固定为 `machine_salt`）。
-5. **控制台会同时列出两边的账号**：两个插件都按「文件名属于本插件约定」兜底列出 `workbuddy-*.json` 这类凭证，这是为了兜住被其他插件抢走 provider 的账号。但保活、自动签到与 401 刷新等**写回**操作只处理 `provider` 明确属于本插件的账号，不会改动对方的凭证文件。
+5. **控制台会同时列出两边的账号**：两个插件都按「文件名属于本插件约定」兜底列出 `workbuddy-*.json` 这类凭证，这是为了兜住被其他插件抢走 provider 的账号。但保活、自动签到、401 刷新，以及控制台的启用/停用/删除，只处理凭证里 `type` 属于本插件的账号，不会改动原版插件的凭证文件。
 
 ## 项目架构
 

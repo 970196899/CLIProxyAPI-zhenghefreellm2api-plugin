@@ -15,7 +15,10 @@ package core
 //   - cline：键名要跟随原文件（下划线/驼峰），不能由骨架决定；
 //   - workbuddy：深合并（mergeMaps）且补 type 兜底，不是「覆盖字段」。
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // MergeCredentialJSON 把 updated 的字段合并进 original，返回缩进后的 JSON。
 //
@@ -38,4 +41,35 @@ func MergeCredentialJSON(original []byte, fresh func() ([]byte, error), apply fu
 		return fresh()
 	}
 	return merged, nil
+}
+
+// CredentialOwnedByType 按凭证 JSON 的 type 字段判定归属。
+//
+// 双开场景下，「provider」无法区分两种相反的条目：
+//   - 原版插件写入的凭证（旧 type）；
+//   - 本插件自己的凭证，但被前置插件把 provider 兜底改写成了别家值。
+//
+// 两者 provider 都可能不是本插件 key，但只有前者应当被拒绝。区分它们的是
+// 凭证内容里的 type：
+//   - 等于本插件 key（大小写不敏感）→ 属于本插件；
+//   - 为空 → 归因不明，按本方处理（历史凭证常缺该字段）；
+//   - 其余（如原版使用的旧标识）→ 属于别的插件。
+//
+// 这是一道**写入门禁**：只用于停用/删除/保活/签到等会改动数据或产生上游
+// 副作用的路径。列表展示不能用它，否则被抢走的本方账号会从页面上消失。
+func CredentialOwnedByType(raw []byte) bool {
+	if len(raw) == 0 {
+		return true
+	}
+	var payload struct {
+		Type string `json:"type"`
+	}
+	if errUnmarshal := json.Unmarshal(raw, &payload); errUnmarshal != nil {
+		return true
+	}
+	value := strings.ToLower(strings.TrimSpace(payload.Type))
+	if value == "" {
+		return true
+	}
+	return value == strings.ToLower(ProviderKey)
 }
