@@ -1009,21 +1009,24 @@ func (c *Client) ReportBillingEvents(ctx context.Context, cred *Credential, even
 	if len(events) == 0 {
 		return nil
 	}
-	// 国际版（global）计费域 /v2/report 的 format validation 会直接拒绝带
-	// knowledgeId / knowledgeName 的 chat_request_send 事件——无论值为空还是
-	// 非空，整个 event 都被判非法（code 10001「all events rejected」）。而
-	// codebaseId / command / expertId 等其余空字符串字段上游都正常接受，唯独
-	// 这两个 knowledge 字段不行。国内版（CN）不受影响，故仅在 global 剥离，
-	// 让「活跃信标」能点亮成长热力图、按天入账 Bonus Pack。
-	// 实测定位（2026-11-12，真实国际版账号逐字段二分）：见 SendDailyBonusBeacon 注释。
-	if cred != nil && cred.Realm().IsGlobal() {
-		for _, ev := range events {
-			if ev == nil {
-				continue
-			}
-			delete(ev, "knowledgeId")
-			delete(ev, "knowledgeName")
+	// 计费域 /v2/report 的 format validation 会直接拒绝带 knowledgeId /
+	// knowledgeName 的 chat_request_send 事件——无论值为空还是非空，整个
+	// event 都被判非法（code 10001「all events rejected」，data 里
+	// dropped=1 / invalidIndices=[0]）。而 codebaseId / command / expertId
+	// 等其余空字符串字段上游都正常接受，唯独这两个 knowledge 字段不行。
+	//
+	// 历史上只有国际版（global）这样，国内版（CN）放行，所以当年只在
+	// global 剥离。2026-11-17 实测 CN 也收紧了：同样的 chat_request_send
+	// 事件被 400 拒（连续两天 activity 族全灭），逐变体验证——
+	//   原样            → 400 all 1 events rejected by format validation
+	//   去掉 knowledge* → 200
+	// 因此改为对两个区域一律剥离，不再按 realm 分支。
+	for _, ev := range events {
+		if ev == nil {
+			continue
 		}
+		delete(ev, "knowledgeId")
+		delete(ev, "knowledgeName")
 	}
 	endpoints := GetEndpoints(cred.Realm())
 	return c.postReport(ctx, cred, endpoints.BillingBase+reportPath, events, func(req *http.Request) {
