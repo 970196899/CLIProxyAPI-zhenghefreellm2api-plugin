@@ -100,6 +100,14 @@ func residueLineAllowed(rel string, line string) bool {
 	return false
 }
 
+// exemptionHits 记录本次扫描中各文件的豁免命中数，由 TestNoResidualFreeTierIdentity
+// 每次运行时重置。与 exemptionBudget 双向校验：未登记预算的文件直接失败。
+var exemptionHits = map[string]int{}
+
+func trackExemption(rel string) {
+	exemptionHits[rel]++
+}
+
 // exemptionBudget 给每个被豁免的文件设定上限：豁免数超出预算即失败。
 //
 // 豁免本身也要受约束——否则「放行一行」会悄悄退化成「放行整个文件」，
