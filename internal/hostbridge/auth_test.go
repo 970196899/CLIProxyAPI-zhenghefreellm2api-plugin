@@ -93,8 +93,8 @@ func TestResolveAuthPathNormalizesHostPath(t *testing.T) {
 func TestCoexistenceAuthListKeepsCurrentClaimBehavior(t *testing.T) {
 	registry := core.NewRegistry()
 	entries := filterPluginAuths([]core.HostAuth{
-		{Name: "workbuddycn-u1.json", Provider: core.ProviderKey, AuthIndex: "1"},
-		{Name: "workbuddycn-u2.json", Provider: "freetier", AuthIndex: "2"},
+		{Name: "workbuddy-u1.json", Provider: core.ProviderKey, AuthIndex: "1"},
+		{Name: "workbuddy-u2.json", Provider: "freetier", AuthIndex: "2"},
 		{Name: "qoder-login-f34c07f7.json", Provider: "freetier", AuthIndex: "3"},
 		{Name: "claude-1.json", Provider: "anthropic", AuthIndex: "4"},
 	}, registry)
@@ -103,10 +103,10 @@ func TestCoexistenceAuthListKeepsCurrentClaimBehavior(t *testing.T) {
 	for _, entry := range entries {
 		got[entry.Name] = true
 	}
-	if !got["workbuddycn-u1.json"] {
+	if !got["workbuddy-u1.json"] {
 		t.Fatal("本插件自己的凭证必须被列出")
 	}
-	if !got["workbuddycn-u2.json"] {
+	if !got["workbuddy-u2.json"] {
 		t.Fatal("原版插件写入、但文件名属于本插件约定的凭证必须仍被列出（第二层判据不得因改名失效）")
 	}
 	if got["qoder-login-f34c07f7.json"] || got["claude-1.json"] {
