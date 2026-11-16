@@ -221,16 +221,19 @@ gh run watch <run-id> --exit-status
 
 ### 规则钉死
 
-在 `CycleCapacitySize > 0` 分支前计算一个布尔量 `nonRollingBase`，条件为四者**同时**成立：
+在 `CycleCapacitySize > 0` 分支前计算一个布尔量 `nonRollingBase`，条件为五者**同时**成立：
 
 1. `account.CycleCapacitySize > 0`
 2. `account.CycleCapacityRemain <= 0`
 3. `account.CapacitySize > 0 && account.CapacityRemain > 0`
-4. `account.CapacityUsed == 0 || account.CycleCapacityUsed >= account.CycleCapacitySize`
+4. `account.CapacitySize == account.CycleCapacitySize`
+5. `account.CapacityUsed == 0 || account.CycleCapacityUsed >= account.CycleCapacitySize`
 
 `nonRollingBase` 为真 → 跳过 Cycle 分支、直接走既有 Capacity 分支；否则逻辑与今天完全一致（Case 1/2/3 三条既有断言全部保住）。
 
-条件 4 完全照抄 Spec §三.1.2 的析取式；条件 3 的 `CapacitySize > 0` 是防止「Capacity 只剩脏数据」时算出 `size=0` 的除零形态。
+条件 5 完全照抄 Spec §三.1.2 的析取式；条件 3 的 `CapacitySize > 0` 是防止「Capacity 只剩脏数据」时算出 `size=0` 的除零形态。
+
+**条件 4 是终审整改追加的**（原方案只有四条件）：只有描述同一笔发放的两本账才能互证。缺了它，「终身额度包」（Capacity 记终身发放量 5000、Cycle 记本月用量 500/0/500）会被误判成基础包，凭空复活 3000 点额度并抬高总额——与被修复缺陷同类、方向相反。反例由 `TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize` 钉死。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -892,7 +895,7 @@ gh run watch <run-id> --exit-status
 | --- | --- | --- | --- | --- |
 | R1 | `Status` 字段名无法自证：Spec 声称上游下发 `Status`，但全仓无样本；请求参数 `"Status": []int{0, 3}` 只暗示上游能返回 Status 3 的包，不能证明字段名 | **不可证** | 零值语义选为「生效中」，字段缺失时全量计入（`TestParseBalanceKeepsAccountsWithoutStatus`）；过滤只剔除明确非 0 | 真实响应回来后若字段名不同，改 `json` tag 一处即可，测试夹具同步换真样本 |
 | R2 | `SubProductCode` 字段名同样无法自证；两个产品码字面量只在 Spec 里出现 | **不可证** | 未知码归入 `资源包明细`，与今天行为完全一致；`TestBuildQuotaResponsePersonalDescription` 原样通过即是证据 | 若字段名不同，改 tag + `quotaGroupRank` 一处；分组退化为单组，不会丢额度 |
-| R3 | Task 2 的回退规则可能复活幽灵额度：若某包 Cycle 账因上游缺陷清零、而 Capacity 账仍是历史满额，会被算成满额 | 理论风险，无样本 | 回退要求 `CycleCapacityRemain <= 0` **且** `CapacityRemain > 0` **且** `CapacityUsed == 0 \|\| CycleCapacityUsed >= CycleCapacitySize`；`TestPackageRemainUsedKeepsExhaustedCyclePackAtZero` 锁死反向边界 | 若线上出现新虚增，收窄条件 4 或改为按产品码白名单 |
+| R3 | Task 2 的回退规则可能复活幽灵额度：若某包 Cycle 账因上游缺陷清零、而 Capacity 账仍是历史满额，会被算成满额 | 理论风险，无样本 | 回退要求 `CycleCapacityRemain <= 0` **且** `CapacityRemain > 0` **且** `CapacitySize == CycleCapacitySize` **且** `CapacityUsed == 0 \|\| CycleCapacityUsed >= CycleCapacitySize`；`TestPackageRemainUsedKeepsExhaustedCyclePackAtZero` 锁死反向边界，`TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize` 锁死「两账 size 不等不得回退」 | **不可约残留**：同为 500/500 的周转包若 Capacity 账从不递减，与基础包数值完全同形，任何算术判据都无法区分，只能靠产品码或真实样本收敛。若线上出现新虚增，改为按 `SubProductCode` 白名单收窄 |
 | R4 | Task 1 的红灯预期值 7493 与明细拆分（1000 / 5489 / 1004）是本方案构造的夹具，不是仓库内真实样本；Spec 只报告了「总额 7493、有效 2004、死包虚增 5489」三个数 | **不可证** | 夹具的三段形态与 Spec 的数量关系一致（7493 − 5489 = 2004）；断言值随夹具确定，验证的是过滤规则而非真实数据 | 无 |
 | R5 | 若某账号资源包真的超过 100 条（`PageSize: 100` 截断），本次修复不覆盖，欠额仍会发生 | 理论风险 | 本次不做（见 Task 4 裁定） | 出现「额度少于预期且包数恰为 100」时立独立工单 |
 | R6 | 企业端点若对 `-free` 模型也不下发 `Credits`，纠偏不生效 | 理论风险 | 规则 3 明确「空倍率不覆盖」，不做猜测 | 需真实企业端点响应后再定策略 |

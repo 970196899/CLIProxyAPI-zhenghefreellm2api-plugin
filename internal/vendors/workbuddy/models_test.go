@@ -1,6 +1,10 @@
 package workbuddy
 
-import "testing"
+import (
+	"testing"
+
+	"freetier2api-plugin/internal/core"
+)
 
 // TestMergeModelCatalogsCorrectsFreeModelCredits 锁定免费模型倍率纠偏：
 // v3 目录把 hy4flash-free 标成 x0.03，企业计费端点给的才是真实扣费口径 x0.00。
@@ -82,5 +86,37 @@ func TestDisplayCreditsMarksAutoAsFloating(t *testing.T) {
 	}
 	if got := displayCredits(ModelInfo{ID: "glm-5.3"}); got != "" {
 		t.Fatalf("unknown credits = %q, want empty", got)
+	}
+}
+
+// TestModelCreditsExcludesDisplaySentinel 锁定接线：
+// ModelCredits 的返回值会被 admin 落盘进 state.json、重启后回灌成
+// ModelInfo.Credits，因此绝不能带上 displayCredits 的「浮动倍率」哨兵；
+// 只有 ConsoleModels 这一条展示路径才允许出现它。
+func TestModelCreditsExcludesDisplaySentinel(t *testing.T) {
+	rt := newRuntime(core.Env{})
+	rt.loadCachedModels([]ModelInfo{
+		{ID: "auto"},
+		{ID: "glm-5.3", Credits: "x0.05"},
+	}, RegionCN)
+	inst := &adapter{rt: rt, region: RegionCN}
+
+	credits := inst.ModelCredits()
+	if _, present := credits["auto"]; present {
+		t.Fatalf("ModelCredits 不得含 auto 键（哨兵会污染持久化），got %q", credits["auto"])
+	}
+	if credits["glm-5.3"] != "0.05X" {
+		t.Fatalf("glm-5.3 credits = %q, want 0.05X", credits["glm-5.3"])
+	}
+
+	// 展示路径必须仍然给 auto 标注浮动倍率。
+	var autoCredits string
+	for _, model := range inst.ConsoleModels() {
+		if model.ID == "auto" {
+			autoCredits = model.Credits
+		}
+	}
+	if autoCredits != "浮动倍率" {
+		t.Fatalf("ConsoleModels 的 auto credits = %q, want 浮动倍率", autoCredits)
 	}
 }
