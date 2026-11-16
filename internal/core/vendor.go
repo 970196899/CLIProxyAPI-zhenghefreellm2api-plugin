@@ -28,7 +28,10 @@ import (
 //
 // 因此供应商的区分落在**凭证文件名前缀**（workbuddycn-<uid>.json）与文件内的
 // vendor 字段上，而不是 provider key。
-const ProviderKey = "freetier"
+//
+// 取 freetierplus 而非 freetier：本插件要与上游原版在同一 CPA 实例双开共存，
+// 两者若共用同一个 provider 键，宿主注册期会冲突，后加载的那份直接被跳过。
+const ProviderKey = "freetierplus"
 
 // VendorKey 是凭证内标识供应商的字段名。
 //
