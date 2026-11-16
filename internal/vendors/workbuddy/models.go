@@ -741,7 +741,6 @@ func displayCredits(model ModelInfo) string {
 	return ""
 }
 
-
 // filterChatModels 剔除对话不可用的模型。
 func filterChatModels(models []ModelInfo) []ModelInfo {
 	out := make([]ModelInfo, 0, len(models))
