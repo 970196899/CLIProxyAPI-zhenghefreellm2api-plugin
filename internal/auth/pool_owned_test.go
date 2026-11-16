@@ -133,9 +133,11 @@ func TestLoadSkipsForeignCredentialsWhenOwnedOnly(t *testing.T) {
 		t.Fatalf("保留的应是本插件凭证，got %s", loaded[0].Entry.Name)
 	}
 
-	// 不开 OwnedOnly 时两条都在：列表展示的容错不能被门禁改变。
-	all, _ := pool.Load(context.Background(), "", Options{})
+	// 不开 OwnedOnly 时原版凭证也在：列表展示的容错不能被门禁改变。
+	// 用独立的 pool 避免上一轮的凭证缓存影响判定。
+	allPool := NewPool(core.NewRegistry(), resolver)
+	all, allFailures := allPool.Load(context.Background(), "", Options{IncludeDisabled: true})
 	if len(all) != 2 {
-		t.Fatalf("默认行为必须保留全部条目，got %d", len(all))
+		t.Fatalf("默认行为必须保留全部条目，got %d（failures=%+v）", len(all), allFailures)
 	}
 }
