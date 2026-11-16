@@ -734,3 +734,57 @@ func TestPackageRemainUsedKeepsExhaustedCyclePackAtZero(t *testing.T) {
 		t.Fatalf("exhausted: remain=%d used=%d size=%d, want 0/1000/1000", remain, used, size)
 	}
 }
+
+// TestBuildQuotaResponseGroupsBySubProductCode 锁定资源包按产品码分类展示：
+// 每日/任务奖励与月度基础套餐混在一个「资源包明细」里，用户看不出哪部分会过期。
+func TestBuildQuotaResponseGroupsBySubProductCode(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"每日签到","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":80},
+	  {"PackageName":"月度基础包","SubProductCode":"sp_tcaca_codebuddy_ide","CycleCapacitySize":500,"CycleCapacityRemain":500},
+	  {"PackageName":"裂变奖励","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":100}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	response := BuildQuotaResponse(testTaskCredential("uid-subproduct"), parseBalance(payload))
+
+	if len(response.Groups) != 2 {
+		t.Fatalf("groups = %+v, want 2（基础月度套餐 + 活动与签到奖励）", response.Groups)
+	}
+	if response.Groups[0].DisplayName != "基础月度套餐" {
+		t.Fatalf("first group = %q, want 基础月度套餐（基础月包必须排在最前）", response.Groups[0].DisplayName)
+	}
+	if len(response.Groups[0].Buckets) != 1 || response.Groups[0].Buckets[0].Window != "月度基础包" {
+		t.Fatalf("first group buckets = %+v", response.Groups[0].Buckets)
+	}
+	if response.Groups[1].DisplayName != "活动与签到奖励" {
+		t.Fatalf("second group = %q, want 活动与签到奖励", response.Groups[1].DisplayName)
+	}
+	if len(response.Groups[1].Buckets) != 2 {
+		t.Fatalf("second group buckets = %d, want 2", len(response.Groups[1].Buckets))
+	}
+}
+
+// TestBuildQuotaResponseKeepsSameNameAcrossGroups 锁定聚合键必须带产品码：
+// 两个产品码下都叫「赠送包」的两条记录不能被合成一条，否则分类又被抹平。
+func TestBuildQuotaResponseKeepsSameNameAcrossGroups(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"赠送包","SubProductCode":"sp_tcaca_codebuddy_ide","CapacitySize":500,"CapacityRemain":500},
+	  {"PackageName":"赠送包","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":100}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	response := BuildQuotaResponse(testTaskCredential("uid-same-name"), parseBalance(payload))
+
+	if len(response.Groups) != 2 {
+		t.Fatalf("groups = %+v, want 2（同名包分属两个产品码，不能合并）", response.Groups)
+	}
+	for index, group := range response.Groups {
+		if len(group.Buckets) != 1 || group.Buckets[0].Window != "赠送包" {
+			t.Fatalf("group[%d] buckets = %+v", index, group.Buckets)
+		}
+	}
+}
