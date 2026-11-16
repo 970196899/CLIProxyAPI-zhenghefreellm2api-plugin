@@ -2739,6 +2739,8 @@ type Balance struct {
 type BalancePackage struct {
 	// Name 是资源包名称。
 	Name string
+	// SubProductCode 是上游产品码，用于把基础月包与活动奖励包分开展示。
+	SubProductCode string
 	// Remain 是剩余量。
 	Remain float64
 	// Total 是总量。
@@ -2759,6 +2761,9 @@ type BalancePackage struct {
 // 字段是**上游原样的 PascalCase**（上游该接口不使用 camelCase）。
 type billingResourceAccount struct {
 	PackageName string `json:"PackageName"`
+	// SubProductCode 是上游的产品码：基础月包与活动奖励包用它区分。
+	// 缺失时为空串，由 quotaGroupRank 归入兜底分组。
+	SubProductCode string `json:"SubProductCode"`
 	// Status 是资源包状态：0 = 生效中，3 = 已过期/归档。
 	//
 	// 请求体用 "Status": [0, 3] 同时取回两类，因此过滤必须在解析期做。
@@ -2912,10 +2917,11 @@ func parseBalance(payload billingResourceResponse) *Balance {
 		balance.Remain += float64(remain)
 		balance.Total += float64(size)
 		balance.Packages = append(balance.Packages, BalancePackage{
-			Name:     strings.TrimSpace(account.PackageName),
-			Remain:   float64(remain),
-			Total:    float64(size),
-			ExpireAt: parsePackageExpiry(account.CycleEndTime),
+			Name:           strings.TrimSpace(account.PackageName),
+			SubProductCode: strings.TrimSpace(account.SubProductCode),
+			Remain:         float64(remain),
+			Total:          float64(size),
+			ExpireAt:       parsePackageExpiry(account.CycleEndTime),
 		})
 	}
 	return balance
@@ -3068,6 +3074,13 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 		// 同名包先合并：营销活动会下发一串同名的「裂变包」，每个 100/100，
 		// 不合并就是五条 100% 进度条，把真正在消耗的套餐挤到看不见。
 		// 合并按首次出现顺序，周期/到期时间取第一个非空值。
+		//
+		// 聚合键必须带上产品码：同一个名字在不同产品码下是两种额度，
+		// 只按名字合并会把分类重新抹平。
+		type packageKey struct {
+			subProductCode string
+			name           string
+		}
 		type packageAggregate struct {
 			remain   float64
 			total    float64
@@ -3075,14 +3088,15 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 			expireAt int64
 			resetAt  int64
 		}
-		order := make([]string, 0, len(balance.Packages))
-		merged := make(map[string]*packageAggregate, len(balance.Packages))
+		order := make([]packageKey, 0, len(balance.Packages))
+		merged := make(map[packageKey]*packageAggregate, len(balance.Packages))
 		for _, pkg := range balance.Packages {
-			agg, ok := merged[pkg.Name]
+			key := packageKey{subProductCode: pkg.SubProductCode, name: pkg.Name}
+			agg, ok := merged[key]
 			if !ok {
 				agg = &packageAggregate{}
-				merged[pkg.Name] = agg
-				order = append(order, pkg.Name)
+				merged[key] = agg
+				order = append(order, key)
 			}
 			agg.remain += pkg.Remain
 			agg.total += pkg.Total
@@ -3096,9 +3110,9 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 				agg.resetAt = pkg.ResetAt
 			}
 		}
-		buckets := make([]pluginapi.QuotaBucket, 0, len(order))
-		for _, name := range order {
-			agg := merged[name]
+
+		bucketFor := func(key packageKey) pluginapi.QuotaBucket {
+			agg := merged[key]
 			fraction := 0.0
 			if agg.total > 0 {
 				fraction = agg.remain / agg.total
@@ -3108,7 +3122,7 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 				description += " · 周期 " + agg.period
 			}
 			bucket := pluginapi.QuotaBucket{
-				Window:            name,
+				Window:            key.name,
 				RemainingFraction: fraction,
 				Description:       description,
 			}
@@ -3119,14 +3133,60 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 			} else if agg.resetAt > 0 {
 				bucket.ResetTime = FormatUnixTime(agg.resetAt)
 			}
-			buckets = append(buckets, bucket)
+			return bucket
 		}
-		response.Groups = []pluginapi.QuotaGroup{{
-			DisplayName: "资源包明细",
-			Buckets:     buckets,
-		}}
+
+		// 按产品码分组输出，组序固定为「基础月度套餐 → 活动与签到奖励 → 资源包明细」，
+		// 与上游返回顺序无关，保证面板稳定。同组内保持首次出现顺序。
+		groups := make([]pluginapi.QuotaGroup, 0, 3)
+		for rank := 0; rank <= 2; rank++ {
+			buckets := make([]pluginapi.QuotaBucket, 0, len(order))
+			displayName := ""
+			for _, key := range order {
+				if quotaGroupRank(key.subProductCode) != rank {
+					continue
+				}
+				displayName = quotaGroupDisplayName(key.subProductCode)
+				buckets = append(buckets, bucketFor(key))
+			}
+			if len(buckets) == 0 {
+				continue
+			}
+			groups = append(groups, pluginapi.QuotaGroup{
+				DisplayName: displayName,
+				Buckets:     buckets,
+			})
+		}
+		response.Groups = groups
 	}
 	return response
+}
+
+// quotaGroupDisplayName 把产品码翻译成面板上的分组名。
+//
+// 未知产品码（含空串）归入「资源包明细」，这样没有产品码的响应
+// （如企业额度）与旧版行为完全一致。
+func quotaGroupDisplayName(subProductCode string) string {
+	switch strings.ToLower(strings.TrimSpace(subProductCode)) {
+	case "sp_tcaca_codebuddy_ide":
+		return "基础月度套餐"
+	case "sp_tcaca_codebuddyide_bonus_pack":
+		return "活动与签到奖励"
+	default:
+		return "资源包明细"
+	}
+}
+
+// quotaGroupRank 返回分组在面板上的排列次序，数值小的靠前。
+func quotaGroupRank(subProductCode string) int {
+	switch strings.ToLower(strings.TrimSpace(subProductCode)) {
+	case "sp_tcaca_codebuddy_ide":
+		return 0
+	case "sp_tcaca_codebuddyide_bonus_pack":
+		return 1
+	default:
+		return 2
+	}
 }
 
 // formatCreditAmount 把积分数量格式化为可读文本。
