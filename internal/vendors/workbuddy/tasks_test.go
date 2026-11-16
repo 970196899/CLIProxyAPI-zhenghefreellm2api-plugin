@@ -708,3 +708,29 @@ func TestParseBalanceKeepsAccountsWithoutStatus(t *testing.T) {
 		t.Fatalf("balance = %v/%v, want 500/500", balance.Remain, balance.Total)
 	}
 }
+
+// TestPackageRemainUsedFallsBackToCapacityForBasePack 锁定月度基础包：
+// 上游对非周转基础包下发 Capacity 500/500/0、Cycle 500/0/500，
+// 无条件采信 CycleCapacityRemain 会把未动过的 500 点判成「剩余 0、已用 500」。
+func TestPackageRemainUsedFallsBackToCapacityForBasePack(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 500, CapacityRemain: 500, CapacityUsed: 0,
+		CycleCapacitySize: 500, CycleCapacityRemain: 0, CycleCapacityUsed: 500,
+	})
+	if remain != 500 || used != 0 || size != 500 {
+		t.Fatalf("base pack: remain=%d used=%d size=%d, want 500/0/500", remain, used, size)
+	}
+}
+
+// TestPackageRemainUsedKeepsExhaustedCyclePackAtZero 锁定回退的反向边界：
+// Cycle 期真的耗尽、Capacity 也没有可采信的剩余时，必须保持 0 剩余——
+// 回退规则不能把已用完的周转包复活成满额。
+func TestPackageRemainUsedKeepsExhaustedCyclePackAtZero(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 1000, CapacityRemain: 0, CapacityUsed: 1000,
+		CycleCapacitySize: 1000, CycleCapacityRemain: 0, CycleCapacityUsed: 1000,
+	})
+	if remain != 0 || used != 1000 || size != 1000 {
+		t.Fatalf("exhausted: remain=%d used=%d size=%d, want 0/1000/1000", remain, used, size)
+	}
+}
