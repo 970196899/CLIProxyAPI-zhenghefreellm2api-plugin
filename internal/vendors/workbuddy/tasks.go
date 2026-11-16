@@ -2758,7 +2758,12 @@ type BalancePackage struct {
 //
 // 字段是**上游原样的 PascalCase**（上游该接口不使用 camelCase）。
 type billingResourceAccount struct {
-	PackageName         string `json:"PackageName"`
+	PackageName string `json:"PackageName"`
+	// Status 是资源包状态：0 = 生效中，3 = 已过期/归档。
+	//
+	// 请求体用 "Status": [0, 3] 同时取回两类，因此过滤必须在解析期做。
+	// 字段缺失时零值是 0，等价于「生效中」——上游改名不应把有效额度算没。
+	Status              int64  `json:"Status"`
 	CycleEndTime        string `json:"CycleEndTime"` // "2006-01-02 15:04:05"，空 = 无到期
 	CapacitySize        int64  `json:"CapacitySize"`
 	CapacityRemain      int64  `json:"CapacityRemain"`
@@ -2884,6 +2889,11 @@ func (c *Client) billingMeterJSON(cred *Credential, paths []string, body any) (j
 func parseBalance(payload billingResourceResponse) *Balance {
 	balance := &Balance{}
 	for _, account := range payload.Response.Data.Accounts {
+		// 请求用 "Status": [0, 3] 同时取回生效包与历史死包：
+		// 把 Status 3 计入总额会让面板虚增数千点。
+		if account.Status != 0 {
+			continue
+		}
 		remain, _, size := packageRemainUsed(account)
 		balance.Remain += float64(remain)
 		balance.Total += float64(size)
