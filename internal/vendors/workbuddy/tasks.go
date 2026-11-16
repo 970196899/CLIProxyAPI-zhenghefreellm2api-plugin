@@ -2850,15 +2850,19 @@ func (c *Client) FetchBalance(cred *Credential) (*Balance, error) {
 	if !c.enabledRealm(region) {
 		return nil, fmt.Errorf("realm %s is disabled by plugin configuration", region)
 	}
-	// 请求体是上游要求的固定形状：缺 ProductCode 或分页会拿到空列表。
+	// 请求体是上游要求的固定形状：缺分页会拿到空列表。
+	// ProductCode 是国服专用码：国服缺它会拿到空列表，国际服带它同样拿到空列表，
+	// 因此只在国服注入。
 	now := time.Now()
 	body := map[string]any{
 		"PageNumber":               1,
 		"PageSize":                 100,
-		"ProductCode":              "p_tcaca",
 		"Status":                   []int{0, 3},
 		"PackageEndTimeRangeBegin": now.Format(packageEndLayout),
 		"PackageEndTimeRangeEnd":   now.Add(365 * 101 * 24 * time.Hour).Format(packageEndLayout),
+	}
+	if !region.IsGlobal() {
+		body["ProductCode"] = "p_tcaca"
 	}
 
 	data, errCall := c.billingMeterJSON(cred, billingMeterPaths(region, billingMeterPath, billingMeterPathV2), body)
