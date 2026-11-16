@@ -43,17 +43,21 @@ func MergeCredentialJSON(original []byte, fresh func() ([]byte, error), apply fu
 	return merged, nil
 }
 
-// CredentialOwnedByType 按凭证 JSON 的 type 字段判定归属。
+// CredentialOwnedByType 判定凭证是否属于本插件（用于写入门禁）。
 //
 // 双开场景下，「provider」无法区分两种相反的条目：
-//   - 原版插件写入的凭证（旧 type）；
+//   - 原版插件写入的凭证（type=freetier）；
 //   - 本插件自己的凭证，但被前置插件把 provider 兜底改写成了别家值。
 //
 // 两者 provider 都可能不是本插件 key，但只有前者应当被拒绝。区分它们的是
-// 凭证内容里的 type：
-//   - 等于本插件 key（大小写不敏感）→ 属于本插件；
-//   - 为空 → 归因不明，按本方处理（历史凭证常缺该字段）；
-//   - 其余（如原版使用的旧标识）→ 属于别的插件。
+// 凭证内容里的 type。
+//
+// 判据是**排除法**：只把「已知别家插件的身份」判为不属于本插件，其余一律放行。
+// 这样两端都不会错：
+//   - 原版插件写的一定是 freetier，被正确排除；
+//   - 本插件承认的历史形态（workbuddy / codebuddy / cline 手工导入）与空 type
+//     （cline/qoder/autoclaw/raccoon/minimaxcode 这五家凭证本就不写 type）
+//     都按本方处理，不会误伤。
 //
 // 这是一道**写入门禁**：只用于停用/删除/保活/签到等会改动数据或产生上游
 // 副作用的路径。列表展示不能用它，否则被抢走的本方账号会从页面上消失。
@@ -67,9 +71,25 @@ func CredentialOwnedByType(raw []byte) bool {
 	if errUnmarshal := json.Unmarshal(raw, &payload); errUnmarshal != nil {
 		return true
 	}
-	value := strings.ToLower(strings.TrimSpace(payload.Type))
+	return OwnedCredentialType(payload.Type)
+}
+
+// foreignCredentialTypes 是已知属于**其他插件**的凭证 type（小写）。
+//
+// 目前只有原版 freetier。将来若要与更多同源插件共存，在此追加即可——
+// 新增在这里的值会被写入门禁排除，不影响其余形态。
+var foreignCredentialTypes = map[string]bool{
+	"freetier": true,
+}
+
+// OwnedCredentialType 报告某个 type 值是否属于本插件。
+//
+// 排除法：type 不在 foreignCredentialTypes 里就算本方。空值、本插件 key、
+// 以及本插件承认的历史形态（workbuddy / codebuddy / cline）都放行。
+func OwnedCredentialType(rawType string) bool {
+	value := strings.ToLower(strings.TrimSpace(rawType))
 	if value == "" {
 		return true
 	}
-	return value == strings.ToLower(ProviderKey)
+	return !foreignCredentialTypes[value]
 }

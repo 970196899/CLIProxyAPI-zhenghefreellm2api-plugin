@@ -114,7 +114,7 @@ type Options struct {
 	//
 	// 判据用凭证内容的 type 而不是 provider：provider 无法区分「对方插件的
 	// 凭证」与「被前置插件抢走的本方凭证」（两者 provider 都可能是别家值），
-	// 只有 type 能区分。详见 credentialOwnedByType。
+	// 只有 type 能区分。详见 core.CredentialOwnedByType。
 	OwnedOnly bool
 }
 

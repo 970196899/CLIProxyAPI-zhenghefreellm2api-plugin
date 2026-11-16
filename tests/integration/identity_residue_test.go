@@ -82,6 +82,11 @@ func residueLineAllowed(rel string, line string) bool {
 		trackExemption(rel)
 		return true
 	}
+	// 双开门禁的实现本体必须点名「哪个 type 属于原版」，这是功能而非残留。
+	if rel == "internal/core/credential_json.go" {
+		trackExemption(rel)
+		return true
+	}
 	// README 的「双开共存须知」整段必须引用旧键名与旧路径，否则用户无从对照升级。
 	// 按章节存在性判定：该节内的行一律放行，节外仍受检。
 	if rel == "README.md" && strings.Contains(line, "原版") {
@@ -100,17 +105,13 @@ func residueLineAllowed(rel string, line string) bool {
 // 豁免本身也要受约束——否则「放行一行」会悄悄退化成「放行整个文件」，
 // 守卫给出的零残留信号就失真了。
 var exemptionBudget = map[string]int{
-	"internal/hostbridge/auth_test.go":              5,
-	"internal/vendors/cline/credential_test.go":     3,
-	"internal/vendors/workbuddy/credential_test.go": 3,
-	"internal/auth/pool_owned_test.go":              3,
-	"README.md":                                     7,
+	"internal/hostbridge/auth_test.go":              4,
+	"internal/vendors/cline/credential_test.go":     1,
+	"internal/vendors/workbuddy/credential_test.go": 1,
+	"internal/auth/pool_owned_test.go":              4,
+	"internal/core/credential_json.go":              4,
+	"README.md":                                     6,
 	"README_EN.md":                                  6,
-}
-var exemptionHits = map[string]int{}
-
-func trackExemption(rel string) {
-	exemptionHits[rel]++
 }
 
 // TestNoResidualFreeTierIdentity 扫描受管文件集，断言身份语境下零残留。
