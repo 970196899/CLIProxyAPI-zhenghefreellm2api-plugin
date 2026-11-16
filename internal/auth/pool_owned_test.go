@@ -141,3 +141,21 @@ func TestLoadSkipsForeignCredentialsWhenOwnedOnly(t *testing.T) {
 		t.Fatalf("默认行为必须保留全部条目，got %d（failures=%+v）", len(all), allFailures)
 	}
 }
+
+// TestForeignCredentialTypesOnlyContainsKnownForeignIDs 锁定排除表的内容。
+//
+// 前面的用例只能证明「原版标识被排除」。若有人往表里加一个本插件自己的
+// 历史形态（workbuddy / codebuddy / cline），或误删原版标识，只有这条能抓到。
+// 这张表的任何变更都应是一次需要显式改测试的决定，而不是顺手编辑。
+func TestForeignCredentialTypesOnlyContainsKnownForeignIDs(t *testing.T) {
+	got := core.ForeignCredentialTypes()
+	want := []string{"freetier"}
+	if len(got) != len(want) {
+		t.Fatalf("排除表 = %v, want %v——新增条目前请确认它确实属于别的插件", got, want)
+	}
+	for index, id := range want {
+		if got[index] != id {
+			t.Fatalf("排除表[%d] = %q, want %q", index, got[index], id)
+		}
+	}
+}

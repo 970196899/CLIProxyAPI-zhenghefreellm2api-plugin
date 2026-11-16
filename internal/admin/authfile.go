@@ -142,7 +142,10 @@ func safeAuthFilePath(registry *core.Registry, entry core.HostAuth, raw []byte, 
 		return "", fmt.Errorf("目标文件属于另一个账号，拒绝删除：%s", filepath.Base(target))
 	}
 	if !core.CredentialOwnedByType(raw) {
-		return "", fmt.Errorf("该凭证属于原版插件（type 不是本插件标识），拒绝改动：%s", filepath.Base(target))
+		// 判据是排除法：只有 type 命中「已知别家」表才拒绝，
+		// 文案要如实反映这一点，否则排查方向会被带偏。
+		return "", fmt.Errorf("该凭证属于其他插件（type 命中已知外部分标识 %v），拒绝改动：%s",
+			core.ForeignCredentialTypes(), filepath.Base(target))
 	}
 	return target, nil
 }

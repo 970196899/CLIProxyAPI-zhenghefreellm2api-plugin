@@ -82,6 +82,19 @@ var foreignCredentialTypes = map[string]bool{
 	"freetier": true,
 }
 
+// ForeignCredentialTypes 返回已知属于其他插件的凭证 type 列表（已排序）。
+//
+// 导出是为了让拒绝文案能如实说明判据——用户看到被拒时会想知道「到底命中
+// 了什么」，而不是一句含糊的「不属于本插件」。
+func ForeignCredentialTypes() []string {
+	out := make([]string, 0, len(foreignCredentialTypes))
+	for key := range foreignCredentialTypes {
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // OwnedCredentialType 报告某个 type 值是否属于本插件。
 //
 // 排除法：type 不在 foreignCredentialTypes 里就算本方。空值、本插件 key、

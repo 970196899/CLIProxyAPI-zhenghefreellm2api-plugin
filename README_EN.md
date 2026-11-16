@@ -148,7 +148,7 @@ Since `v0.1.60` this plugin's ID and provider key are `freetierplus`, so it can 
 
 1. **Rename the config key**: change the original `plugins.configs.freetier` to `plugins.configs.freetierplus` in `config.yaml`, otherwise the new plugin will not be enabled.
 2. **Library file name**: the host looks up the library by `{id}{ext}`, so the file must be named `freetierplus.dll` / `freetierplus.so`. The original upstream's `freetier.*` will not be picked up.
-3. **Credential `type` field**: credentials written by this build carry `type: freetierplus`. Existing credentials whose `type` is still `freetier` are claimed by the original plugin, and this plugin will no longer claim them by type — that is the intended isolation. To move an account over, edit its file and change `type` to `freetierplus`.
+3. **Credential `type` field**: credentials written by this build carry `type: freetierplus`. Existing credentials whose `type` is still `freetier` are claimed by the original plugin, and this plugin will no longer claim them by type — that is the intended isolation. To move an account over, edit its file and change `type` to `freetierplus` (only applies to vendors that write `type`, see item 6).
 4. **WorkBuddy device fingerprint will change**: the state directory moves from `~/.freetier-plugin` to `~/.freetierplus-plugin`, so `machine_salt` is regenerated and WorkBuddy's `X-Machine-ID` changes — upstream sees "same account, new device". To keep the original fingerprint, either:
    - set `machine_salt: <original value>` under `plugins.configs.freetierplus` in `config.yaml` (this override wins over the file);
    - or copy the `machine_salt` file from the old state directory into the new one (the file name is always `machine_salt`).

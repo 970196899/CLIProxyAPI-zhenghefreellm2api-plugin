@@ -116,7 +116,7 @@ var exemptionBudget = map[string]int{
 	"internal/hostbridge/auth_test.go":              4,
 	"internal/vendors/cline/credential_test.go":     1,
 	"internal/vendors/workbuddy/credential_test.go": 1,
-	"internal/auth/pool_owned_test.go":              4,
+	"internal/auth/pool_owned_test.go":              5,
 	"internal/core/credential_json.go":              4,
 	"README.md":                                     6,
 	"README_EN.md":                                  6,
