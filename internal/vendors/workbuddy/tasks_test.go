@@ -788,3 +788,86 @@ func TestBuildQuotaResponseKeepsSameNameAcrossGroups(t *testing.T) {
 		}
 	}
 }
+
+// capturingHost 记录最近一次 host.http.do 的 URL 与请求体。
+type capturingHost struct {
+	url  string
+	body []byte
+}
+
+// installCapturingHost 回固定响应，并把请求 URL 与 body 记进 capturingHost。
+func installCapturingHost(t *testing.T, responseBody string) *capturingHost {
+	t.Helper()
+	host := &capturingHost{}
+	hostbridge.Configure(func(_, method string, payload any) (json.RawMessage, error) {
+		if method != pluginabi.MethodHostHTTPDo {
+			return nil, fmt.Errorf("test host: unsupported method %s", method)
+		}
+		raw, errMarshal := json.Marshal(payload)
+		if errMarshal != nil {
+			return nil, errMarshal
+		}
+		var req struct {
+			URL  string `json:"url"`
+			Body []byte `json:"body"`
+		}
+		if errDecode := json.Unmarshal(raw, &req); errDecode != nil {
+			return nil, errDecode
+		}
+		host.url = req.URL
+		host.body = req.Body
+		return json.Marshal(map[string]any{
+			"StatusCode": 200,
+			"Headers":    map[string][]string{"Content-Type": {"application/json"}},
+			"Body":       []byte(responseBody),
+		})
+	})
+	t.Cleanup(func() { hostbridge.Configure(nil) })
+	return host
+}
+
+// TestFetchBalanceSendsProductCodeForCN 锁定国内服必须带国服产品码。
+func TestFetchBalanceSendsProductCodeForCN(t *testing.T) {
+	host := installCapturingHost(t, `{"code":0,"data":{"Response":{"Data":{"Accounts":[]}}}}`)
+	client := NewClient(newRuntime(core.Env{}), Options{Context: context.Background()})
+	if _, errFetch := client.FetchBalance(testTaskCredential("uid-cn-product-code")); errFetch != nil {
+		t.Fatalf("fetch balance: %v", errFetch)
+	}
+	var body map[string]any
+	if errUnmarshal := json.Unmarshal(host.body, &body); errUnmarshal != nil {
+		t.Fatalf("decode request body %s: %v", host.body, errUnmarshal)
+	}
+	if body["ProductCode"] != "p_tcaca" {
+		t.Fatalf("ProductCode = %v, want p_tcaca", body["ProductCode"])
+	}
+	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
+		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
+	}
+	if statuses, ok := body["Status"].([]any); !ok || len(statuses) != 2 {
+		t.Fatalf("Status = %v, want [0 3]", body["Status"])
+	}
+}
+
+// TestFetchBalanceOmitsProductCodeForGlobal 锁定国际服不得带国服专用产品码：
+// p_tcaca 在国际服不匹配，会静默返回空列表、面板显示 0 额度。
+func TestFetchBalanceOmitsProductCodeForGlobal(t *testing.T) {
+	host := installCapturingHost(t, `{"code":0,"data":{"Response":{"Data":{"Accounts":[]}}}}`)
+	client := NewClient(newRuntime(core.Env{}), Options{Context: context.Background()})
+	if _, errFetch := client.FetchBalance(testGlobalCredential("uid-global-product-code")); errFetch != nil {
+		t.Fatalf("fetch balance: %v", errFetch)
+	}
+	var body map[string]any
+	if errUnmarshal := json.Unmarshal(host.body, &body); errUnmarshal != nil {
+		t.Fatalf("decode request body %s: %v", host.body, errUnmarshal)
+	}
+	if _, present := body["ProductCode"]; present {
+		t.Fatalf("国际服请求体不得带 ProductCode，body = %s", host.body)
+	}
+	// 其余参数必须原样保留：只允许少一个键。
+	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
+		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
+	}
+	if statuses, ok := body["Status"].([]any); !ok || len(statuses) != 2 {
+		t.Fatalf("Status = %v, want [0 3]", body["Status"])
+	}
+}
