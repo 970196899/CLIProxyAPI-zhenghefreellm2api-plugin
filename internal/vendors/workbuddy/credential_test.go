@@ -137,9 +137,9 @@ func TestLooksLikeCredential(t *testing.T) {
 		{"type field uppercase", map[string]any{"type": "FreeTierPlus"}, "x.json", "", true},
 		{"legacy workbuddy type", map[string]any{"type": "workbuddy"}, "x.json", "", true},
 		{"legacy codebuddy type", map[string]any{"type": "codebuddy"}, "x.json", "", true},
-		// 双开隔离：原版插件的 type=freetier 不再按 type 认领，
+		// 双开隔离：原版插件的旧 type 不再按 type 认领，
 		// 否则两个插件会抢同一份凭证。
-		{"legacy freetier type alone is foreign", map[string]any{"type": "freetier"}, "x.json", "", false},
+		{"legacy upstream type alone is foreign", map[string]any{"type": "freetier"}, "x.json", "", false},
 		{"domain workbuddy.ai", map[string]any{"domain": "www.workbuddy.ai"}, "x.json", "", true},
 		{"domain codebuddy.cn", map[string]any{"domain": "www.codebuddy.cn"}, "x.json", "", true},
 		{"nested domain workbuddy.ai", map[string]any{"auth": map[string]any{"domain": "api.workbuddy.ai"}}, "x.json", "", true},
