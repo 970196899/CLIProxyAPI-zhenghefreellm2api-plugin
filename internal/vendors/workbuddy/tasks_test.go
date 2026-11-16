@@ -665,3 +665,46 @@ func TestWaitGrowthClaimableStopsOnClaimed(t *testing.T) {
 		t.Fatalf("list calls = %d, want 1（终态应立即返回）", listCalls)
 	}
 }
+
+// TestParseBalanceSkipsInactiveAccounts 锁定死包过滤：
+// 上游请求用 "Status": [0, 3] 同时取回生效包与历史死包，
+// 把 Status 3 计入总额会让面板虚增数千点。
+func TestParseBalanceSkipsInactiveAccounts(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"基础套餐","Status":0,"CycleCapacitySize":1000,"CycleCapacityRemain":400,"CycleCapacityUsed":600},
+	  {"PackageName":"历史死包","Status":3,"CapacitySize":5489,"CapacityRemain":5489},
+	  {"PackageName":"加油包","Status":0,"CapacitySize":1004,"CapacityRemain":1004}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	balance := parseBalance(payload)
+
+	if balance.Total != 2004 {
+		t.Fatalf("total = %v, want 2004（Status 3 的 5489 点死包不能计入）", balance.Total)
+	}
+	if balance.Remain != 1404 {
+		t.Fatalf("remain = %v, want 1404", balance.Remain)
+	}
+	if len(balance.Packages) != 2 {
+		t.Fatalf("packages = %d, want 2（死包不应出现在明细里）", len(balance.Packages))
+	}
+}
+
+// TestParseBalanceKeepsAccountsWithoutStatus 锁定兼容形态：
+// 上游若不下发 Status（或字段名与假设不符），全部资源包必须照旧计入。
+// 过滤只能剔除明确标记为非 0 的包，绝不能把「字段缺失」当成「已过期」。
+func TestParseBalanceKeepsAccountsWithoutStatus(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"加油包","CapacitySize":500,"CapacityRemain":500}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	balance := parseBalance(payload)
+	if balance.Total != 500 || balance.Remain != 500 {
+		t.Fatalf("balance = %v/%v, want 500/500", balance.Remain, balance.Total)
+	}
+}
