@@ -503,7 +503,7 @@ func (v *adapter) ConsoleModels() []core.ConsoleModel {
 			DefaultEffort:   model.DefaultEffort,
 			SupportsImages:  model.SupportsImages,
 			SupportsTools:   model.SupportsToolCall,
-			Credits:         core.FormatRate(model.Credits),
+			Credits:         displayCredits(model),
 		})
 	}
 	return out
@@ -514,7 +514,7 @@ func (v *adapter) ModelCredits() map[string]string {
 	cached := v.rt.cachedModels()[NormalizeRegion(string(v.region))]
 	out := make(map[string]string, len(cached))
 	for _, model := range cached {
-		if rate := core.FormatRate(model.Credits); rate != "" {
+		if rate := displayCredits(model); rate != "" {
 			out[model.ID] = rate
 		}
 	}
