@@ -94,8 +94,8 @@ func (v *ownedTestVendor) ExecuteStream(context.Context, *core.Credential, *core
 // 可注入的 Resolver），把门禁的接线本身钉死：原版凭证被跳过、本插件凭证保留。
 func TestLoadSkipsForeignCredentialsWhenOwnedOnly(t *testing.T) {
 	dir := t.TempDir()
-	oursPath := filepath.Join(dir, "wb-ours.json")
-	origPath := filepath.Join(dir, "wb-original.json")
+	oursPath := filepath.Join(dir, "workbuddy-ours.json")
+	origPath := filepath.Join(dir, "workbuddy-original.json")
 	if errWrite := os.WriteFile(oursPath, []byte(`{"type":"freetierplus","auth":{}}`), 0o600); errWrite != nil {
 		t.Fatalf("write ours: %v", errWrite)
 	}
@@ -108,8 +108,8 @@ func TestLoadSkipsForeignCredentialsWhenOwnedOnly(t *testing.T) {
 			return nil, fmt.Errorf("unexpected host method %s", method)
 		}
 		raw, errMarshal := json.Marshal(map[string]any{"auths": []map[string]string{
-			{"id": "1", "auth_index": "1", "name": "wb-ours.json", "provider": core.ProviderKey, "path": oursPath},
-			{"id": "2", "auth_index": "2", "name": "wb-original.json", "provider": "freetier", "path": origPath},
+			{"id": "1", "auth_index": "1", "name": "workbuddy-ours.json", "provider": core.ProviderKey, "path": oursPath},
+			{"id": "2", "auth_index": "2", "name": "workbuddy-original.json", "provider": "freetier", "path": origPath},
 		}})
 		if errMarshal != nil {
 			return nil, errMarshal
@@ -129,7 +129,7 @@ func TestLoadSkipsForeignCredentialsWhenOwnedOnly(t *testing.T) {
 	if len(loaded) != 1 {
 		t.Fatalf("OwnedOnly 下应只剩本插件凭证，got %d", len(loaded))
 	}
-	if loaded[0].Entry.Name != "wb-ours.json" {
+	if loaded[0].Entry.Name != "workbuddy-ours.json" {
 		t.Fatalf("保留的应是本插件凭证，got %s", loaded[0].Entry.Name)
 	}
 
