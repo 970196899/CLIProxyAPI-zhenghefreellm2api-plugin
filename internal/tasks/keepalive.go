@@ -126,6 +126,9 @@ func (s *Service) Keepalive(ctx context.Context, callbackID string, targets []st
 	loaded, _ := s.deps.Pool().Load(ctx, callbackID, auth.Options{
 		Targets:       targets,
 		EnabledRealms: s.deps.Config().EnabledRealms,
+		// 保活会续期并写回凭证：双开时必须排除原版插件的账号，
+		// 否则两个插件各自轮换同一份 refresh token，会互相把对方刷失效。
+		OwnedOnly: true,
 	})
 	jobs := make([]*accountContext, 0, len(loaded))
 	for _, item := range loaded {

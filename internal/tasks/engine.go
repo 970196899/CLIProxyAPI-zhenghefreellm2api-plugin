@@ -260,6 +260,8 @@ func (s *Service) forEachAccount(ctx context.Context, callbackID string, targets
 	accounts, failures := s.deps.Pool().Load(ctx, callbackID, auth.Options{
 		Targets:       targets,
 		EnabledRealms: cfg.EnabledRealms,
+		// 自动任务（签到等）会写回凭证，双开时必须排除原版插件的账号。
+		OwnedOnly: true,
 	})
 	for _, failure := range failures {
 		logger.Debug("跳过账号 %s：%s", core.FirstNonEmpty(failure.Entry.Name, failure.Entry.ID), failure.Message)

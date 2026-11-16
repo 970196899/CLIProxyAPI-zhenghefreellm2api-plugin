@@ -59,18 +59,55 @@ func residueLineAllowed(rel string, line string) bool {
 		return true
 	}
 	// 双开共存回归测试刻意写出原版 ID 来断言「原版凭证仍被正确处置」：
-	// 这里的 freetier 是**被测对象**，不是身份残留。
-	if rel == "internal/hostbridge/auth_test.go" {
+	// 这里的 freetier 是**被测对象**，不是身份残留。只放行含 freetier 字面量的
+	// 行，避免整文件豁免后该文件里未来出现的真实身份也被漏掉。
+	if rel == "internal/hostbridge/auth_test.go" && strings.Contains(line, "freetier") {
+		trackExemption(rel)
+		return true
+	}
+	// 双开隔离的 type 判据用例刻意写出原版 ID 作为**被测输入**：
+	// 这些行断言「原版 type 必须被判为别家」，是隔离语义的证据而非残留。
+	if rel == "internal/vendors/cline/credential_test.go" && strings.Contains(line, `"freetier"`) {
+		trackExemption(rel)
+		return true
+	}
+	if rel == "internal/vendors/workbuddy/credential_test.go" && strings.Contains(line, `"freetier"`) {
+		trackExemption(rel)
+		return true
+	}
+	// 写回边界的用例同样以原版 ID 为**被测输入**：断言它必须被排除。
+	if rel == "internal/auth/pool_owned_test.go" && strings.Contains(line, `"freetier"`) {
+		trackExemption(rel)
 		return true
 	}
 	// README 的双开说明里会提到原版 ID：只允许显式标注「原版 / original」的行。
 	if rel == "README.md" && strings.Contains(line, "原版") {
+		trackExemption(rel)
 		return true
 	}
 	if rel == "README_EN.md" && (strings.Contains(line, "original upstream") || strings.Contains(line, "the original")) {
+		trackExemption(rel)
 		return true
 	}
 	return false
+}
+
+// exemptionBudget 给每个被豁免的文件设定上限：豁免数超出预算即失败。
+//
+// 豁免本身也要受约束——否则「放行一行」会悄悄退化成「放行整个文件」，
+// 守卫给出的零残留信号就失真了。
+var exemptionBudget = map[string]int{
+	"internal/hostbridge/auth_test.go":              5,
+	"internal/vendors/cline/credential_test.go":     3,
+	"internal/vendors/workbuddy/credential_test.go": 3,
+	"internal/auth/pool_owned_test.go":              3,
+	"README.md":                                     4,
+	"README_EN.md":                                  3,
+}
+var exemptionHits = map[string]int{}
+
+func trackExemption(rel string) {
+	exemptionHits[rel]++
 }
 
 // TestNoResidualFreeTierIdentity 扫描受管文件集，断言身份语境下零残留。
@@ -82,6 +119,9 @@ func TestNoResidualFreeTierIdentity(t *testing.T) {
 	managedExt := map[string]bool{".go": true, ".html": true, ".json": true, ".yml": true, ".md": true, ".sh": true}
 	// 大小写不敏感：FreeTier 也是身份残留（显示名/注释）。
 	residue := regexp.MustCompile(`(?i)freetier`)
+
+	// 每次运行重置豁免计数（同包内多次调用时互不污染）。
+	exemptionHits = map[string]int{}
 
 	var offenders []string
 	errWalk := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -130,6 +170,13 @@ func TestNoResidualFreeTierIdentity(t *testing.T) {
 	})
 	if errWalk != nil {
 		t.Fatalf("walk repo: %v", errWalk)
+	}
+	// 豁免本身也要受约束：超出预算说明豁免在悄悄扩大，守卫信号失真。
+	for rel, used := range exemptionHits {
+		if budget, ok := exemptionBudget[rel]; ok && used > budget {
+			t.Fatalf("%s 的身份豁免用了 %d 处，超出预算 %d——豁免不得成为身份残留的通道",
+				rel, used, budget)
+		}
 	}
 	if len(offenders) > 0 {
 		t.Fatalf("仍有 %d 处身份残留 freetier（应为 freetierplus）：\n%s",

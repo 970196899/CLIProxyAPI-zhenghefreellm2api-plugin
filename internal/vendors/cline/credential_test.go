@@ -27,6 +27,10 @@ func TestLooksLikeCredential_Cline(t *testing.T) {
 		{"workbuddy type rejected", "acc.json", map[string]any{"type": "workbuddy", "refreshToken": "rt"}, false},
 		{"foreign vendor rejected", "acc.json", map[string]any{"vendor": "workbuddyglobal", "refreshToken": "rt"}, false},
 		{"qoder filename rejected", "qoder-abc.json", map[string]any{"refreshToken": "rt"}, false},
+		// 双开隔离的方向性语义：原版插件写的 type=freetier 凭证不再算「自己人」，
+		// 于是被判为 foreign 并拒绝认领——这正是双开想要的方向。
+		{"legacy freetier type is foreign", "acc.json", map[string]any{"type": "freetier", "refreshToken": "rt"}, false},
+		{"provider type is ours", "acc.json", map[string]any{"type": "freetierplus", "refreshToken": "rt"}, true},
 		{"empty", "x.json", nil, false},
 	}
 	for _, tc := range cases {

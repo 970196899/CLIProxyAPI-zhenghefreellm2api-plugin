@@ -105,6 +105,27 @@ type Options struct {
 	Filter          func(Account) bool
 	EnabledRealms   []string
 	IncludeDisabled bool
+	// OwnedOnly 只保留 provider 明确属于本插件的条目。
+	//
+	// 用于**写回**链路（保活、自动任务、单账号操作）：ListAuths 会按文件名
+	// 兜底收下「provider 被前置插件抢走」的凭证，这是列表展示必需的容错；
+	// 但写回链路若复用同一份清单，双开时会把原版插件的账号也拿来续期改写，
+	// 两个插件共用 refresh token 各自轮换，可能互相把对方刷失效。
+	//
+	// provider 为空表示宿主没填，不是「属于别家」的证据，仍保留。
+	OwnedOnly bool
+}
+
+// ownedByPlugin 报告凭证是否明确属于本插件。
+//
+// 只判「provider 非空且不是本插件 key」这一种明确的否定：provider 为空时
+// 归因不明，不能据此把用户的账号排除在外。
+func ownedByPlugin(entry core.HostAuth) bool {
+	provider := strings.TrimSpace(entry.Provider)
+	if provider == "" {
+		return true
+	}
+	return strings.EqualFold(provider, core.ProviderKey)
 }
 
 // Load 返回可用账号与失败条目；按 credential FileID 去重。
@@ -124,6 +145,9 @@ func (p *Pool) Load(ctx context.Context, callbackID string, opts Options) ([]Acc
 	seen := map[string]bool{}
 	vendorCounts := map[string]int{}
 	for _, entry := range entries {
+		if opts.OwnedOnly && !ownedByPlugin(entry) {
+			continue
+		}
 		if !opts.IncludeDisabled && !entry.Usable() {
 			continue
 		}
@@ -210,7 +234,12 @@ func RefreshCredential(ctx context.Context, pool *Pool, callbackID, authID, vend
 	if keepalive != nil {
 		keepalive()
 	}
-	loaded, errLoad := pool.Load(ctx, callbackID, Options{Targets: []string{authID}, EnabledRealms: realms})
+	loaded, errLoad := pool.Load(ctx, callbackID, Options{
+		Targets:       []string{authID},
+		EnabledRealms: realms,
+		// 这是 401 后的凭证刷新路径，同样只应处理本插件自己的账号。
+		OwnedOnly: true,
+	})
 	if errLoad != nil {
 		// 加载失败与「刷新后仍然找不到」表现相同（都返回 nil），不记一笔的话
 		// 凭证服务真挂了，排查时只能看到「凭证缺失」（#71 第二轮复审 P2-6）。

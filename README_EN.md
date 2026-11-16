@@ -10,7 +10,7 @@ A native dynamic library plugin that connects multiple free-tier AI providers to
 
 If this project helps you, a Star would mean a lot.
 
-> **About this repository**: the original repository `jiandanc/CLIProxyAPI-freetier2api-plugin` disappeared from GitHub together with its owner's account (both the account and the repository return 404). This repository continues that line; from **v0.1.29** onward it is maintained by `cxy2730`. The plugin ID stays `freetier`, so existing installations can upgrade in place. History and all tags up to `v0.1.28` are preserved.
+> **About this repository**: the original repository `jiandanc/CLIProxyAPI-freetier2api-plugin` disappeared from GitHub together with its owner's account (both the account and the repository return 404). This repository continues that line; from **v0.1.29** onward it is maintained by `cxy2730`. From **v0.1.60** the plugin ID is `freetierplus`, so this build can run side by side with the original upstream (whose ID remains `freetier`) in the same CPA instance. Existing installations must rename the `plugins.configs` key and replace the shared library to upgrade. History and all tags up to `v0.1.28` are preserved.
 
 ## Features
 
@@ -72,8 +72,8 @@ plugins:
 Requires Go 1.22+ and a C compiler (`CGO_ENABLED=1`), or use the bundled Docker build script (`golang:1.24` Debian glibc image):
 
 ```bash
-git clone https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin.git
-cd CLIProxyAPI-freetier2api-plugin
+git clone https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin.git
+cd CLIProxyAPI-zhenghefreellm2api-plugin
 ./scripts/build.sh
 ```
 

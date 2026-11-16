@@ -72,8 +72,8 @@ plugins:
 需 Go 1.22+ 与 C 编译器（启用 `CGO_ENABLED=1`），或直接使用仓库内置的 Docker 构建脚本（基于 `golang:1.24` Debian glibc 镜像）：
 
 ```bash
-git clone https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin.git
-cd CLIProxyAPI-freetier2api-plugin
+git clone https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin.git
+cd CLIProxyAPI-zhenghefreellm2api-plugin
 ./scripts/build.sh
 ```
 
@@ -141,6 +141,18 @@ curl http://localhost:8317/v1/messages \
 | `log_to_host` | bool | `true` | 把插件日志镜像进宿主 `main.log`，CLIProxyAPI 面板的日志页可直接查看 |
 | `host_log_file` | string | 自动探测 | 宿主日志文件路径。留空时按 `state_dir` 反推 `<base>/auths/logs/main.log` 或 `<base>/logs/main.log`，都不存在则不启用 |
 | `host_log_level` | string | `info` | 镜像到宿主日志的最低级别：`debug` / `info` / `error` |
+
+## 双开共存须知
+
+自 `v0.1.60` 起本插件的 ID 与 provider 键是 `freetierplus`，可以与上游原版（ID 仍为 `freetier`）同时放进同一个 CPA 实例。以下是升级与双开时必须知道的五件事：
+
+1. **配置键要改**：`config.yaml` 里原本的 `plugins.configs.freetier` 要改成 `plugins.configs.freetierplus`，否则新插件不会被启用。
+2. **动态库文件名**：宿主按 `{id}{ext}` 查找动态库，文件必须叫 `freetierplus.dll` / `freetierplus.so`，不能沿用旧的 `freetier.*`。
+3. **凭证的 `type` 字段**：新版写入的凭证 `type` 是 `freetierplus`。存量凭证若 `type` 仍是 `freetier`，会被原版插件按 type 认领，本插件不再按 type 认领它们——这是双开隔离的预期行为。若要把某个账号迁到新版，需手工把该文件里的 `type` 改成 `freetierplus`。
+4. **WorkBuddy 设备指纹会变**：状态目录从 `~/.freetier-plugin` 变为 `~/.freetierplus-plugin`，其中的 `machine_salt` 文件会重新生成，WorkBuddy 的 `X-Machine-ID` 随之改变，上游会视为「同一账号、新设备」。若想保留原指纹，二选一：
+   - 在 `config.yaml` 的 `plugins.configs.freetierplus` 下填 `machine_salt: <原值>`（该覆盖键优先于文件）；
+   - 或把旧状态目录里的 `machine_salt` 文件复制到新状态目录（文件名固定为 `machine_salt`）。
+5. **控制台会同时列出两边的账号**：两个插件都按「文件名属于本插件约定」兜底列出 `workbuddy-*.json` 这类凭证，这是为了兜住被其他插件抢走 provider 的账号。但保活、自动签到与 401 刷新等**写回**操作只处理 `provider` 明确属于本插件的账号，不会改动对方的凭证文件。
 
 ## 项目架构
 
