@@ -172,7 +172,7 @@ func (s *Service) Handle(request []byte) ([]byte, error) {
 
 	switch {
 	case method == http.MethodGet && matchesResourcePath(rpc.Path, id.ID, "/console"):
-		return core.OKEnvelope(HTMLResponse(http.StatusOK, []byte(Page("/plugins/"+id.ID))))
+		return core.OKEnvelope(HTMLResponse(http.StatusOK, PageBytes("/plugins/"+id.ID)))
 
 	case method == http.MethodGet && matchesManagementPath(rpc.Path, id.ID, "/status"):
 		return core.OKEnvelope(JSONResponse(http.StatusOK, s.buildStatusPayload(rpc)))

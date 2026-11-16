@@ -208,7 +208,12 @@
   // 阈值。因此先只发 1 个请求，成功了才继续。
   function probeManagementAuth() {
     return api("GET", "/vendors").then(function (data) {
-      return !!(data && data.vendors);
+      if (!data || !data.vendors) return false;
+      // 顺手用掉这次的结果：验证密钥与加载供应商表本来就是同一个请求，
+      // 旧实现探一次、startConsole 再拉一次，首屏白多一个往返（服务端日志
+      // 里能看到连续两条 GET /vendors）。
+      applyVendors(data);
+      return true;
     }).catch(function () { return false; });
   }
 
@@ -218,13 +223,21 @@
   // api() 的闸门挡下，因此一次打开最多造成 1 次失败。
   // 供应商表仍排第一：账号表与模型表的展示名都依赖它。
   function startConsole() {
-    loadVendors().then(function () {
+    // probeManagementAuth 已经把供应商表装好了，这里不再重复请求。
+    var vendors = vendorsLoaded ? Promise.resolve(true) : loadVendors();
+    vendors.then(function () {
       // 单步失败不应阻断后续模块；鉴权失败时 api() 闸门会挡下所有后续请求。
-      // loadQuotas 结束时会自己重拉账号表，首屏因此不必先 loadStatus：
-      // 先渲染一次「查询中」，再带着额度结果重渲染。
+      // 先渲染一版：/status 只读缓存（实测 1-2ms），页面立刻可用。
       return loadStatus().catch(function () { return null; });
     }).then(function () {
-      return loadQuotas(true).catch(function () { return null; });
+      // 只补刷「没有缓存或缓存过期」的账号。
+      //
+      // 旧实现每次进页面都对全部账号打一轮上游（实测 366-500ms，账号越多
+      // 越久），首屏总要先等这一轮；额度是分钟级指标，10 分钟内的读数够用，
+      // 手动「查询额度」按钮仍然是全量刷新。
+      var stale = staleQuotaAccounts(QUOTA_AUTO_REFRESH_MS);
+      if (!stale.length) return null;
+      return loadQuotas(true, stale).catch(function () { return null; });
     }).then(function () {
       loadModels(true);   // 进入页面自动获取模型清单
     });
