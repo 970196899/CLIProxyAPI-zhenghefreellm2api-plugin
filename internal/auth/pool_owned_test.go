@@ -63,8 +63,6 @@ func TestCredentialOwnedByTypeKeepsHijackedOwnAccount(t *testing.T) {
 	}
 }
 
-
-
 // ownedTestVendor 是门禁接线测试用的最小供应商实现。
 // 只提供 Load 链路真正会调到的 Region()，其余方法留空壳。
 type ownedTestVendor struct {
