@@ -558,10 +558,10 @@ func TestConsoleModelChangesTriggerHostReload(t *testing.T) {
 	page := Page("/plugins/freetierplus")
 
 	for _, literal := range []string{
-		"syncModelConfig",                      // 同步入口
-		"config_reloaded_at",                   // 制造配置内容变化的键
-		`hostPath("/plugins/freetierplus/config")`, // 宿主插件配置路由
-		`api("PATCH", configPath`,              // 浅合并写配置，触发宿主重载
+		"syncModelConfig",            // 同步入口
+		"config_reloaded_at",         // 制造配置内容变化的键
+		`hostPath(BASE + "/config")`, // 宿主插件配置路由（随 BASE 派生，不硬编码）
+		`api("PATCH", configPath`,    // 浅合并写配置，触发宿主重载
 	} {
 		if !strings.Contains(page, literal) {
 			t.Fatalf("console page missing model-sync wiring (%s)", literal)
