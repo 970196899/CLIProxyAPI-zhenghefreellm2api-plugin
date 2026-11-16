@@ -320,11 +320,11 @@ func TestConsolePageWiresHostOAuthLogin(t *testing.T) {
 
 	for _, literal := range []string{
 		"/freetierplus-auth-url", // 与 providerKey 拼接，宿主按此匹配 auth provider
-		"get-auth-status",    // 宿主提供的状态轮询端点
-		`id="addVendorMenu"`, // 供应商下拉菜单（替代原先的两个固定按钮）
-		`id="btnAddAccount"`, // 添加账号入口
-		"startLogin",         // 登录流程
-		"pollLogin",          // 轮询流程
+		"get-auth-status",        // 宿主提供的状态轮询端点
+		`id="addVendorMenu"`,     // 供应商下拉菜单（替代原先的两个固定按钮）
+		`id="btnAddAccount"`,     // 添加账号入口
+		"startLogin",             // 登录流程
+		"pollLogin",              // 轮询流程
 	} {
 		if !strings.Contains(page, literal) {
 			t.Fatalf("console page is missing the add-account wiring (%s)", literal)

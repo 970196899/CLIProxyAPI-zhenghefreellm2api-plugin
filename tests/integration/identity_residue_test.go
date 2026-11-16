@@ -45,6 +45,7 @@ func TestPluginIdentityIsFreeTierPlus(t *testing.T) {
 var residueAllowed = map[string]string{
 	"internal/vendors/autoclaw/chat.go": "上游请求指纹头 x_trace_id",
 }
+
 // residueLineAllowed 判定某行是否属于「合法残留」。调用方已剔除模块路径与新身份
 // （freetier2api-plugin / freetierplus），因此进入本函数的行里出现的 freetier
 // 一定是需要裁决的形态。
