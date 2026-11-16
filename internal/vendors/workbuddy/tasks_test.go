@@ -871,3 +871,21 @@ func TestFetchBalanceOmitsProductCodeForGlobal(t *testing.T) {
 		t.Fatalf("Status = %v, want [0 3]", body["Status"])
 	}
 }
+
+// TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize 锁定回退规则的
+// 结构约束：Capacity 与 Cycle 两本账的 size 不相等，说明它们描述的不是
+// 同一笔发放，不能互证。
+//
+// 反例形态：终身额度包 Capacity 5000/3000/0，同时 Cycle 500/0/500（本月用尽）。
+// 若只看「Cycle 清零 + Capacity 有余额 + Capacity 未扣减」，会把从未动用的
+// 3000 点终身额度当成可用余额，且把 Total 抬高 4500——这正是本次修复要
+// 消灭的那类虚增，只是方向相反。
+func TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 5000, CapacityRemain: 3000, CapacityUsed: 0,
+		CycleCapacitySize: 500, CycleCapacityRemain: 0, CycleCapacityUsed: 500,
+	})
+	if remain != 0 || used != 500 || size != 500 {
+		t.Fatalf("lifetime pack: remain=%d used=%d size=%d, want 0/500/500（两账 size 不同，不得回退）", remain, used, size)
+	}
+}
