@@ -2739,6 +2739,8 @@ type Balance struct {
 type BalancePackage struct {
 	// Name 是资源包名称。
 	Name string
+	// SubProductCode 是上游产品码，用于把基础月包与活动奖励包分开展示。
+	SubProductCode string
 	// Remain 是剩余量。
 	Remain float64
 	// Total 是总量。
@@ -2758,7 +2760,15 @@ type BalancePackage struct {
 //
 // 字段是**上游原样的 PascalCase**（上游该接口不使用 camelCase）。
 type billingResourceAccount struct {
-	PackageName         string `json:"PackageName"`
+	PackageName string `json:"PackageName"`
+	// SubProductCode 是上游的产品码：基础月包与活动奖励包用它区分。
+	// 缺失时为空串，由 quotaGroupRank 归入兜底分组。
+	SubProductCode string `json:"SubProductCode"`
+	// Status 是资源包状态：0 = 生效中，3 = 已过期/归档。
+	//
+	// 请求体用 "Status": [0, 3] 同时取回两类，因此过滤必须在解析期做。
+	// 字段缺失时零值是 0，等价于「生效中」——上游改名不应把有效额度算没。
+	Status              int64  `json:"Status"`
 	CycleEndTime        string `json:"CycleEndTime"` // "2006-01-02 15:04:05"，空 = 无到期
 	CapacitySize        int64  `json:"CapacitySize"`
 	CapacityRemain      int64  `json:"CapacityRemain"`
@@ -2770,8 +2780,8 @@ type billingResourceAccount struct {
 
 // billingResourceResponse 是余额接口的响应结构。
 //
-// 双层信封：Response.Data.Accounts。请求体也必须带分页与产品码，
-// 否则上游返回空列表（这一点早期实现漏了，导致余额恒为 0）。
+// 双层信封：Response.Data.Accounts。请求体必须带分页，否则上游返回空列表；
+// 产品码只有国服必填（国际服带国服码同样返回空列表），见 FetchBalance。
 type billingResourceResponse struct {
 	Response struct {
 		Data struct {
@@ -2787,8 +2797,27 @@ type billingResourceResponse struct {
 //     remain 先钳到 [0, size]；used 取 CycleUsed 与 size-remain 的较大者，
 //     且当 used 更大时反推 remain = size - used；
 //   - 否则回退 Capacity 三字段，used 为 0 但 size > remain 时按差值补 used。
+//
+// 例外：上游对每月免费基础包（如 sp_tcaca_codebuddy_ide）下发双账本——
+// Capacity 记「发多少、用多少」，Cycle 记「本周期额度、本周期已用」。
+// 这类包不是周转包：Cycle 账会显示整期用尽（remain 0、used 等于 size），
+// 而 Capacity 账才是真实余额。无条件优先 Cycle 会把没动过的 500 点判成耗尽，
+// 因此识别出「Cycle 已清零 + Capacity 从未动用」时回退采信 Capacity。
 func packageRemainUsed(account billingResourceAccount) (remain, used, size int64) {
-	if account.CycleCapacitySize > 0 {
+	// 非周转基础包：Cycle 期已整期用尽，但 Capacity 账仍有余额且从未扣减过。
+	// CapacityUsed == 0 是常态；CycleCapacityUsed >= CycleCapacitySize 覆盖
+	// 上游把基础额记为「本周期已用满」的变体。两边都要有非零 size，
+	// 防止脏数据下算出 size = 0。
+	//
+	// 两账 size 必须相等：只有描述同一笔发放的两本账才能互证。
+	// 否则会把「终身额度包」误判成基础包——那类包 Capacity 记终身发放量、
+	// Cycle 记本月用量，两账 size 不同，采信 Capacity 就是凭空复活额度。
+	nonRollingBase := account.CycleCapacitySize > 0 &&
+		account.CycleCapacityRemain <= 0 &&
+		account.CapacitySize > 0 && account.CapacityRemain > 0 &&
+		account.CapacitySize == account.CycleCapacitySize &&
+		(account.CapacityUsed == 0 || account.CycleCapacityUsed >= account.CycleCapacitySize)
+	if account.CycleCapacitySize > 0 && !nonRollingBase {
 		remain = account.CycleCapacityRemain
 		size = account.CycleCapacitySize
 		if remain < 0 {
@@ -2826,15 +2855,19 @@ func (c *Client) FetchBalance(cred *Credential) (*Balance, error) {
 	if !c.enabledRealm(region) {
 		return nil, fmt.Errorf("realm %s is disabled by plugin configuration", region)
 	}
-	// 请求体是上游要求的固定形状：缺 ProductCode 或分页会拿到空列表。
+	// 请求体是上游要求的固定形状：缺分页会拿到空列表。
+	// ProductCode 是国服专用码：国服缺它会拿到空列表，国际服带它同样拿到空列表，
+	// 因此只在国服注入。
 	now := time.Now()
 	body := map[string]any{
 		"PageNumber":               1,
 		"PageSize":                 100,
-		"ProductCode":              "p_tcaca",
 		"Status":                   []int{0, 3},
 		"PackageEndTimeRangeBegin": now.Format(packageEndLayout),
 		"PackageEndTimeRangeEnd":   now.Add(365 * 101 * 24 * time.Hour).Format(packageEndLayout),
+	}
+	if !region.IsGlobal() {
+		body["ProductCode"] = "p_tcaca"
 	}
 
 	data, errCall := c.billingMeterJSON(cred, billingMeterPaths(region, billingMeterPath, billingMeterPathV2), body)
@@ -2884,14 +2917,20 @@ func (c *Client) billingMeterJSON(cred *Credential, paths []string, body any) (j
 func parseBalance(payload billingResourceResponse) *Balance {
 	balance := &Balance{}
 	for _, account := range payload.Response.Data.Accounts {
+		// 请求用 "Status": [0, 3] 同时取回生效包与历史死包：
+		// 把 Status 3 计入总额会让面板虚增数千点。
+		if account.Status != 0 {
+			continue
+		}
 		remain, _, size := packageRemainUsed(account)
 		balance.Remain += float64(remain)
 		balance.Total += float64(size)
 		balance.Packages = append(balance.Packages, BalancePackage{
-			Name:     strings.TrimSpace(account.PackageName),
-			Remain:   float64(remain),
-			Total:    float64(size),
-			ExpireAt: parsePackageExpiry(account.CycleEndTime),
+			Name:           strings.TrimSpace(account.PackageName),
+			SubProductCode: strings.TrimSpace(account.SubProductCode),
+			Remain:         float64(remain),
+			Total:          float64(size),
+			ExpireAt:       parsePackageExpiry(account.CycleEndTime),
 		})
 	}
 	return balance
@@ -3044,6 +3083,13 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 		// 同名包先合并：营销活动会下发一串同名的「裂变包」，每个 100/100，
 		// 不合并就是五条 100% 进度条，把真正在消耗的套餐挤到看不见。
 		// 合并按首次出现顺序，周期/到期时间取第一个非空值。
+		//
+		// 聚合键必须带上产品码：同一个名字在不同产品码下是两种额度，
+		// 只按名字合并会把分类重新抹平。
+		type packageKey struct {
+			subProductCode string
+			name           string
+		}
 		type packageAggregate struct {
 			remain   float64
 			total    float64
@@ -3051,14 +3097,15 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 			expireAt int64
 			resetAt  int64
 		}
-		order := make([]string, 0, len(balance.Packages))
-		merged := make(map[string]*packageAggregate, len(balance.Packages))
+		order := make([]packageKey, 0, len(balance.Packages))
+		merged := make(map[packageKey]*packageAggregate, len(balance.Packages))
 		for _, pkg := range balance.Packages {
-			agg, ok := merged[pkg.Name]
+			key := packageKey{subProductCode: pkg.SubProductCode, name: pkg.Name}
+			agg, ok := merged[key]
 			if !ok {
 				agg = &packageAggregate{}
-				merged[pkg.Name] = agg
-				order = append(order, pkg.Name)
+				merged[key] = agg
+				order = append(order, key)
 			}
 			agg.remain += pkg.Remain
 			agg.total += pkg.Total
@@ -3072,9 +3119,9 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 				agg.resetAt = pkg.ResetAt
 			}
 		}
-		buckets := make([]pluginapi.QuotaBucket, 0, len(order))
-		for _, name := range order {
-			agg := merged[name]
+
+		bucketFor := func(key packageKey) pluginapi.QuotaBucket {
+			agg := merged[key]
 			fraction := 0.0
 			if agg.total > 0 {
 				fraction = agg.remain / agg.total
@@ -3084,7 +3131,7 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 				description += " · 周期 " + agg.period
 			}
 			bucket := pluginapi.QuotaBucket{
-				Window:            name,
+				Window:            key.name,
 				RemainingFraction: fraction,
 				Description:       description,
 			}
@@ -3095,14 +3142,60 @@ func BuildQuotaResponse(credential *Credential, balance *Balance) pluginapi.Quot
 			} else if agg.resetAt > 0 {
 				bucket.ResetTime = FormatUnixTime(agg.resetAt)
 			}
-			buckets = append(buckets, bucket)
+			return bucket
 		}
-		response.Groups = []pluginapi.QuotaGroup{{
-			DisplayName: "资源包明细",
-			Buckets:     buckets,
-		}}
+
+		// 按产品码分组输出，组序固定为「基础月度套餐 → 活动与签到奖励 → 资源包明细」，
+		// 与上游返回顺序无关，保证面板稳定。同组内保持首次出现顺序。
+		groups := make([]pluginapi.QuotaGroup, 0, 3)
+		for rank := 0; rank <= 2; rank++ {
+			buckets := make([]pluginapi.QuotaBucket, 0, len(order))
+			displayName := ""
+			for _, key := range order {
+				if quotaGroupRank(key.subProductCode) != rank {
+					continue
+				}
+				displayName = quotaGroupDisplayName(key.subProductCode)
+				buckets = append(buckets, bucketFor(key))
+			}
+			if len(buckets) == 0 {
+				continue
+			}
+			groups = append(groups, pluginapi.QuotaGroup{
+				DisplayName: displayName,
+				Buckets:     buckets,
+			})
+		}
+		response.Groups = groups
 	}
 	return response
+}
+
+// quotaGroupDisplayName 把产品码翻译成面板上的分组名。
+//
+// 未知产品码（含空串）归入「资源包明细」，这样没有产品码的响应
+// （如企业额度）与旧版行为完全一致。
+func quotaGroupDisplayName(subProductCode string) string {
+	switch strings.ToLower(strings.TrimSpace(subProductCode)) {
+	case "sp_tcaca_codebuddy_ide":
+		return "基础月度套餐"
+	case "sp_tcaca_codebuddyide_bonus_pack":
+		return "活动与签到奖励"
+	default:
+		return "资源包明细"
+	}
+}
+
+// quotaGroupRank 返回分组在面板上的排列次序，数值小的靠前。
+func quotaGroupRank(subProductCode string) int {
+	switch strings.ToLower(strings.TrimSpace(subProductCode)) {
+	case "sp_tcaca_codebuddy_ide":
+		return 0
+	case "sp_tcaca_codebuddyide_bonus_pack":
+		return 1
+	default:
+		return 2
+	}
 }
 
 // formatCreditAmount 把积分数量格式化为可读文本。

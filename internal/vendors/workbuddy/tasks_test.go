@@ -665,3 +665,231 @@ func TestWaitGrowthClaimableStopsOnClaimed(t *testing.T) {
 		t.Fatalf("list calls = %d, want 1（终态应立即返回）", listCalls)
 	}
 }
+
+// TestParseBalanceSkipsInactiveAccounts 锁定死包过滤：
+// 上游请求用 "Status": [0, 3] 同时取回生效包与历史死包，
+// 把 Status 3 计入总额会让面板虚增数千点。
+func TestParseBalanceSkipsInactiveAccounts(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"基础套餐","Status":0,"CycleCapacitySize":1000,"CycleCapacityRemain":400,"CycleCapacityUsed":600},
+	  {"PackageName":"历史死包","Status":3,"CapacitySize":5489,"CapacityRemain":5489},
+	  {"PackageName":"加油包","Status":0,"CapacitySize":1004,"CapacityRemain":1004}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	balance := parseBalance(payload)
+
+	if balance.Total != 2004 {
+		t.Fatalf("total = %v, want 2004（Status 3 的 5489 点死包不能计入）", balance.Total)
+	}
+	if balance.Remain != 1404 {
+		t.Fatalf("remain = %v, want 1404", balance.Remain)
+	}
+	if len(balance.Packages) != 2 {
+		t.Fatalf("packages = %d, want 2（死包不应出现在明细里）", len(balance.Packages))
+	}
+}
+
+// TestParseBalanceKeepsAccountsWithoutStatus 锁定兼容形态：
+// 上游若不下发 Status（或字段名与假设不符），全部资源包必须照旧计入。
+// 过滤只能剔除明确标记为非 0 的包，绝不能把「字段缺失」当成「已过期」。
+func TestParseBalanceKeepsAccountsWithoutStatus(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"加油包","CapacitySize":500,"CapacityRemain":500}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	balance := parseBalance(payload)
+	if balance.Total != 500 || balance.Remain != 500 {
+		t.Fatalf("balance = %v/%v, want 500/500", balance.Remain, balance.Total)
+	}
+}
+
+// TestPackageRemainUsedFallsBackToCapacityForBasePack 锁定月度基础包：
+// 上游对非周转基础包下发 Capacity 500/500/0、Cycle 500/0/500，
+// 无条件采信 CycleCapacityRemain 会把未动过的 500 点判成「剩余 0、已用 500」。
+func TestPackageRemainUsedFallsBackToCapacityForBasePack(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 500, CapacityRemain: 500, CapacityUsed: 0,
+		CycleCapacitySize: 500, CycleCapacityRemain: 0, CycleCapacityUsed: 500,
+	})
+	if remain != 500 || used != 0 || size != 500 {
+		t.Fatalf("base pack: remain=%d used=%d size=%d, want 500/0/500", remain, used, size)
+	}
+}
+
+// TestPackageRemainUsedKeepsExhaustedCyclePackAtZero 锁定回退的反向边界：
+// Cycle 期真的耗尽、Capacity 也没有可采信的剩余时，必须保持 0 剩余——
+// 回退规则不能把已用完的周转包复活成满额。
+func TestPackageRemainUsedKeepsExhaustedCyclePackAtZero(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 1000, CapacityRemain: 0, CapacityUsed: 1000,
+		CycleCapacitySize: 1000, CycleCapacityRemain: 0, CycleCapacityUsed: 1000,
+	})
+	if remain != 0 || used != 1000 || size != 1000 {
+		t.Fatalf("exhausted: remain=%d used=%d size=%d, want 0/1000/1000", remain, used, size)
+	}
+}
+
+// TestBuildQuotaResponseGroupsBySubProductCode 锁定资源包按产品码分类展示：
+// 每日/任务奖励与月度基础套餐混在一个「资源包明细」里，用户看不出哪部分会过期。
+func TestBuildQuotaResponseGroupsBySubProductCode(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"每日签到","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":80},
+	  {"PackageName":"月度基础包","SubProductCode":"sp_tcaca_codebuddy_ide","CycleCapacitySize":500,"CycleCapacityRemain":500},
+	  {"PackageName":"裂变奖励","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":100}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	response := BuildQuotaResponse(testTaskCredential("uid-subproduct"), parseBalance(payload))
+
+	if len(response.Groups) != 2 {
+		t.Fatalf("groups = %+v, want 2（基础月度套餐 + 活动与签到奖励）", response.Groups)
+	}
+	if response.Groups[0].DisplayName != "基础月度套餐" {
+		t.Fatalf("first group = %q, want 基础月度套餐（基础月包必须排在最前）", response.Groups[0].DisplayName)
+	}
+	if len(response.Groups[0].Buckets) != 1 || response.Groups[0].Buckets[0].Window != "月度基础包" {
+		t.Fatalf("first group buckets = %+v", response.Groups[0].Buckets)
+	}
+	if response.Groups[1].DisplayName != "活动与签到奖励" {
+		t.Fatalf("second group = %q, want 活动与签到奖励", response.Groups[1].DisplayName)
+	}
+	if len(response.Groups[1].Buckets) != 2 {
+		t.Fatalf("second group buckets = %d, want 2", len(response.Groups[1].Buckets))
+	}
+}
+
+// TestBuildQuotaResponseKeepsSameNameAcrossGroups 锁定聚合键必须带产品码：
+// 两个产品码下都叫「赠送包」的两条记录不能被合成一条，否则分类又被抹平。
+func TestBuildQuotaResponseKeepsSameNameAcrossGroups(t *testing.T) {
+	raw := `{"Response":{"Data":{"Accounts":[
+	  {"PackageName":"赠送包","SubProductCode":"sp_tcaca_codebuddy_ide","CapacitySize":500,"CapacityRemain":500},
+	  {"PackageName":"赠送包","SubProductCode":"sp_tcaca_codebuddyide_bonus_pack","CapacitySize":100,"CapacityRemain":100}
+	]}}}`
+	var payload billingResourceResponse
+	if errUnmarshal := json.Unmarshal([]byte(raw), &payload); errUnmarshal != nil {
+		t.Fatalf("unmarshal: %v", errUnmarshal)
+	}
+	response := BuildQuotaResponse(testTaskCredential("uid-same-name"), parseBalance(payload))
+
+	if len(response.Groups) != 2 {
+		t.Fatalf("groups = %+v, want 2（同名包分属两个产品码，不能合并）", response.Groups)
+	}
+	for index, group := range response.Groups {
+		if len(group.Buckets) != 1 || group.Buckets[0].Window != "赠送包" {
+			t.Fatalf("group[%d] buckets = %+v", index, group.Buckets)
+		}
+	}
+}
+
+// capturingHost 记录最近一次 host.http.do 的 URL 与请求体。
+type capturingHost struct {
+	url  string
+	body []byte
+}
+
+// installCapturingHost 回固定响应，并把请求 URL 与 body 记进 capturingHost。
+func installCapturingHost(t *testing.T, responseBody string) *capturingHost {
+	t.Helper()
+	host := &capturingHost{}
+	hostbridge.Configure(func(_, method string, payload any) (json.RawMessage, error) {
+		if method != pluginabi.MethodHostHTTPDo {
+			return nil, fmt.Errorf("test host: unsupported method %s", method)
+		}
+		raw, errMarshal := json.Marshal(payload)
+		if errMarshal != nil {
+			return nil, errMarshal
+		}
+		var req struct {
+			URL  string `json:"url"`
+			Body []byte `json:"body"`
+		}
+		if errDecode := json.Unmarshal(raw, &req); errDecode != nil {
+			return nil, errDecode
+		}
+		host.url = req.URL
+		host.body = req.Body
+		return json.Marshal(map[string]any{
+			"StatusCode": 200,
+			"Headers":    map[string][]string{"Content-Type": {"application/json"}},
+			"Body":       []byte(responseBody),
+		})
+	})
+	t.Cleanup(func() { hostbridge.Configure(nil) })
+	return host
+}
+
+// TestFetchBalanceSendsProductCodeForCN 锁定国内服必须带国服产品码。
+func TestFetchBalanceSendsProductCodeForCN(t *testing.T) {
+	host := installCapturingHost(t, `{"code":0,"data":{"Response":{"Data":{"Accounts":[]}}}}`)
+	client := NewClient(newRuntime(core.Env{}), Options{Context: context.Background()})
+	if _, errFetch := client.FetchBalance(testTaskCredential("uid-cn-product-code")); errFetch != nil {
+		t.Fatalf("fetch balance: %v", errFetch)
+	}
+	var body map[string]any
+	if errUnmarshal := json.Unmarshal(host.body, &body); errUnmarshal != nil {
+		t.Fatalf("decode request body %s: %v", host.body, errUnmarshal)
+	}
+	if body["ProductCode"] != "p_tcaca" {
+		t.Fatalf("ProductCode = %v, want p_tcaca", body["ProductCode"])
+	}
+	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
+		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
+	}
+	statuses, okStatus := body["Status"].([]any)
+	if !okStatus || len(statuses) != 2 ||
+		statuses[0] != float64(0) || statuses[1] != float64(3) {
+		t.Fatalf("Status = %v, want [0 3]", body["Status"])
+	}
+}
+
+// TestFetchBalanceOmitsProductCodeForGlobal 锁定国际服不得带国服专用产品码：
+// p_tcaca 在国际服不匹配，会静默返回空列表、面板显示 0 额度。
+func TestFetchBalanceOmitsProductCodeForGlobal(t *testing.T) {
+	host := installCapturingHost(t, `{"code":0,"data":{"Response":{"Data":{"Accounts":[]}}}}`)
+	client := NewClient(newRuntime(core.Env{}), Options{Context: context.Background()})
+	if _, errFetch := client.FetchBalance(testGlobalCredential("uid-global-product-code")); errFetch != nil {
+		t.Fatalf("fetch balance: %v", errFetch)
+	}
+	var body map[string]any
+	if errUnmarshal := json.Unmarshal(host.body, &body); errUnmarshal != nil {
+		t.Fatalf("decode request body %s: %v", host.body, errUnmarshal)
+	}
+	if _, present := body["ProductCode"]; present {
+		t.Fatalf("国际服请求体不得带 ProductCode，body = %s", host.body)
+	}
+	// 其余参数必须原样保留：只允许少一个键。
+	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
+		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
+	}
+	statuses, okStatus := body["Status"].([]any)
+	if !okStatus || len(statuses) != 2 ||
+		statuses[0] != float64(0) || statuses[1] != float64(3) {
+		t.Fatalf("Status = %v, want [0 3]", body["Status"])
+	}
+}
+
+// TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize 锁定回退规则的
+// 结构约束：Capacity 与 Cycle 两本账的 size 不相等，说明它们描述的不是
+// 同一笔发放，不能互证。
+//
+// 反例形态：终身额度包 Capacity 5000/3000/0，同时 Cycle 500/0/500（本月用尽）。
+// 若只看「Cycle 清零 + Capacity 有余额 + Capacity 未扣减」，会把从未动用的
+// 3000 点终身额度当成可用余额，且把 Total 抬高 4500——这正是本次修复要
+// 消灭的那类虚增，只是方向相反。
+func TestPackageRemainUsedRejectsNonBasePackWithoutMatchingSize(t *testing.T) {
+	remain, used, size := packageRemainUsed(billingResourceAccount{
+		CapacitySize: 5000, CapacityRemain: 3000, CapacityUsed: 0,
+		CycleCapacitySize: 500, CycleCapacityRemain: 0, CycleCapacityUsed: 500,
+	})
+	if remain != 0 || used != 500 || size != 500 {
+		t.Fatalf("lifetime pack: remain=%d used=%d size=%d, want 0/500/500（两账 size 不同，不得回退）", remain, used, size)
+	}
+}

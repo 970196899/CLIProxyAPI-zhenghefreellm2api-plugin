@@ -397,7 +397,8 @@ func sortModels(models []ModelInfo) {
 // 两路/三路缺一不可：实测 IDE UA 与 CLI UA 返回的清单**各有独有模型**
 // （IDE 有 o4-mini/enhance-1.0，CLI 有 deepseek 系），任何单路都会漏模型。
 //
-// 合并策略：v3 条目优先（字段更全），企业端点只补 v3 缺失的 id。
+// 合并策略：v3 条目作骨架（字段更全），企业端点补缺失的 id 并纠正倍率。
+// 倍率例外是因为 v3 的 credits 是营销展示值，企业端点才是真实扣费口径。
 // 单路失败降级为另一路；全部失败才返回错误。
 
 // v3ConfigResponse 是 /v3/config 的响应体。
@@ -498,13 +499,7 @@ func (c *Client) fetchModelsFromUpstream(region Region) ([]ModelInfo, error) {
 		}
 	}
 
-	merged := dedupeModels(primaryModels)
-	// 企业端点只补 v3 没有的 id（不覆盖已有字段）。
-	for _, model := range fallbackModels {
-		if !containsModelID(merged, model.ID) {
-			merged = append(merged, model)
-		}
-	}
+	merged := mergeModelCatalogs(primaryModels, fallbackModels)
 	if len(merged) == 0 {
 		if firstErr != nil {
 			return nil, fmt.Errorf("probe models for %s: %w", region, firstErr)
@@ -688,6 +683,62 @@ func dedupeModels(models []ModelInfo) []ModelInfo {
 		out = append(out, model)
 	}
 	return out
+}
+
+// modelIndex 返回指定 ID 在切片中的下标，找不到返回 -1。
+//
+// 不能用 findModel：它返回值拷贝，回写不到切片里。
+func modelIndex(models []ModelInfo, id string) int {
+	want := strings.TrimSpace(id)
+	for index := range models {
+		if strings.TrimSpace(models[index].ID) == want {
+			return index
+		}
+	}
+	return -1
+}
+
+// mergeModelCatalogs 合并 v3 目录与企业计费端点目录。
+//
+// 骨架取 v3：它的字段最全（上下文、能力、档位），整体权威。
+// 但**倍率例外**——企业端点记的是真实扣费口径，v3 的 credits 是营销展示值：
+//   - 企业端点倍率为空 → 视为「未知」，保留 v3 原值，绝不清空；
+//   - 企业与 v3 归一化后相等 → 保留 v3 原串，避免无意义覆盖；
+//   - 不相等 → 用企业端点的真实倍率覆盖。
+//
+// 除 Credits 外的一切字段一律保留骨架值。
+func mergeModelCatalogs(primary, fallback []ModelInfo) []ModelInfo {
+	merged := dedupeModels(primary)
+	for _, candidate := range fallback {
+		index := modelIndex(merged, candidate.ID)
+		if index < 0 {
+			merged = append(merged, candidate)
+			continue
+		}
+		fallbackRate := core.FormatRate(candidate.Credits)
+		if fallbackRate == "" {
+			continue
+		}
+		if fallbackRate != core.FormatRate(merged[index].Credits) {
+			merged[index].Credits = candidate.Credits
+		}
+	}
+	return merged
+}
+
+// displayCredits 返回控制台展示用的倍率文案。
+//
+// auto 是路由用的虚拟模型，上游不给倍率；留空会让面板显示成空白，
+// 看起来像「没查到数据」，因此显式标注浮动。
+// 不写进 ModelInfo.Credits 本体：describeModel 会把它拼成 [xxx credit] 前缀。
+func displayCredits(model ModelInfo) string {
+	if rate := core.FormatRate(model.Credits); rate != "" {
+		return rate
+	}
+	if strings.TrimSpace(model.ID) == "auto" {
+		return "浮动倍率"
+	}
+	return ""
 }
 
 // filterChatModels 剔除对话不可用的模型。

@@ -561,8 +561,13 @@ const (
 	//
 	// /v3/config 对 UA 敏感：过旧会拿到精简目录或 400 code=12403。
 	// 实测两路各有独有模型（IDE 含 o4-mini/enhance-1.0，CLI 含 deepseek 系），缺一不可。
+	//
+	// CLI 探测 UA 复用 defaultCLIVersion 拼接：版本号只留一处事实源，
+	// 否则人工升版时会漏改这里（上一个 2.63.2 就是这么过期的）。
+	// 注意它与 endpointsGlobal.CLIVersion（对话 UA 的 2.161.0）语义不同：
+	// 那个是对话链路的客户端版本，两者不可合并成一个常量。
 	codeBuddyIDEUA = "CodeBuddyIDE/4.12.0 CodeBuddy/4.12.0"
-	codeBuddyCLIUA = "CLI/2.63.2 CodeBuddy/2.63.2"
+	codeBuddyCLIUA = "CLI/" + defaultCLIVersion + " CodeBuddy/" + defaultCLIVersion
 	// chromeUA 是 web 指纹族使用的浏览器 UA。
 	chromeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
 )
