@@ -843,7 +843,9 @@ func TestFetchBalanceSendsProductCodeForCN(t *testing.T) {
 	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
 		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
 	}
-	if statuses, ok := body["Status"].([]any); !ok || len(statuses) != 2 {
+	statuses, okStatus := body["Status"].([]any)
+	if !okStatus || len(statuses) != 2 ||
+		statuses[0] != float64(0) || statuses[1] != float64(3) {
 		t.Fatalf("Status = %v, want [0 3]", body["Status"])
 	}
 }
@@ -867,7 +869,9 @@ func TestFetchBalanceOmitsProductCodeForGlobal(t *testing.T) {
 	if body["PageNumber"] != float64(1) || body["PageSize"] != float64(100) {
 		t.Fatalf("paging = %v/%v, want 1/100", body["PageNumber"], body["PageSize"])
 	}
-	if statuses, ok := body["Status"].([]any); !ok || len(statuses) != 2 {
+	statuses, okStatus := body["Status"].([]any)
+	if !okStatus || len(statuses) != 2 ||
+		statuses[0] != float64(0) || statuses[1] != float64(3) {
 		t.Fatalf("Status = %v, want [0 3]", body["Status"])
 	}
 }
