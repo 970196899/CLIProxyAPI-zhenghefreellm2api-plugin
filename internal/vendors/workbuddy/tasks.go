@@ -2780,8 +2780,8 @@ type billingResourceAccount struct {
 
 // billingResourceResponse 是余额接口的响应结构。
 //
-// 双层信封：Response.Data.Accounts。请求体也必须带分页与产品码，
-// 否则上游返回空列表（这一点早期实现漏了，导致余额恒为 0）。
+// 双层信封：Response.Data.Accounts。请求体必须带分页，否则上游返回空列表；
+// 产品码只有国服必填（国际服带国服码同样返回空列表），见 FetchBalance。
 type billingResourceResponse struct {
 	Response struct {
 		Data struct {
@@ -2808,9 +2808,14 @@ func packageRemainUsed(account billingResourceAccount) (remain, used, size int64
 	// CapacityUsed == 0 是常态；CycleCapacityUsed >= CycleCapacitySize 覆盖
 	// 上游把基础额记为「本周期已用满」的变体。两边都要有非零 size，
 	// 防止脏数据下算出 size = 0。
+	//
+	// 两账 size 必须相等：只有描述同一笔发放的两本账才能互证。
+	// 否则会把「终身额度包」误判成基础包——那类包 Capacity 记终身发放量、
+	// Cycle 记本月用量，两账 size 不同，采信 Capacity 就是凭空复活额度。
 	nonRollingBase := account.CycleCapacitySize > 0 &&
 		account.CycleCapacityRemain <= 0 &&
 		account.CapacitySize > 0 && account.CapacityRemain > 0 &&
+		account.CapacitySize == account.CycleCapacitySize &&
 		(account.CapacityUsed == 0 || account.CycleCapacityUsed >= account.CycleCapacitySize)
 	if account.CycleCapacitySize > 0 && !nonRollingBase {
 		remain = account.CycleCapacityRemain

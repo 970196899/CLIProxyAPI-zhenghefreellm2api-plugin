@@ -510,11 +510,15 @@ func (v *adapter) ConsoleModels() []core.ConsoleModel {
 }
 
 // ModelCredits 实现 core.CreditsProvider：把上游的积分倍率规范化后交给控制台。
+//
+// 这里刻意不用 displayCredits：它的「浮动倍率」是纯展示文案，
+// 而本返回值会被 admin 落盘进 state.json、重启后回灌成 ModelInfo.Credits，
+// 哨兵一旦混进去就会让 describeModel 拼出 [浮动倍率 credit]。
 func (v *adapter) ModelCredits() map[string]string {
 	cached := v.rt.cachedModels()[NormalizeRegion(string(v.region))]
 	out := make(map[string]string, len(cached))
 	for _, model := range cached {
-		if rate := displayCredits(model); rate != "" {
+		if rate := core.FormatRate(model.Credits); rate != "" {
 			out[model.ID] = rate
 		}
 	}
