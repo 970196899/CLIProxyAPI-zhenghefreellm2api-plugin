@@ -103,6 +103,10 @@ func DefaultStateDir() string {
 	if home, errHome := os.UserHomeDir(); errHome == nil && strings.TrimSpace(home) != "" {
 		cpaDir := filepath.Join(home, ".cli-proxy-api")
 		if info, errStat := os.Stat(cpaDir); errStat == nil && info.IsDir() {
+			// 这里的 "freetier" 与 DefaultStateDirName 一样**刻意不随 pluginID 变化**：
+			// 插件身份改成 zhenghefreellm 之后，老用户的账号、设备指纹、控制台设置
+			// 仍在这个目录里。「账号无需迁移」这句承诺就落在这行字面量上——改成
+			// pluginID 会让所有人升级后看到零账号。要改必须配一次显式迁移。
 			return filepath.Join(cpaDir, "freetier")
 		}
 		return filepath.Join(home, DefaultStateDirName)
