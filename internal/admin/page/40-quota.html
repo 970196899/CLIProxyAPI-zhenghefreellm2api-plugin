@@ -1,5 +1,32 @@
   // ---- 额度 ----
 
+  // QUOTA_AUTO_REFRESH_MS 是「进页面自动刷额度」的时效阈值。
+  //
+  // 以前每次打开控制台都对全部账号打一遍上游（实测 366-500ms，账号越多越久），
+  // 首屏因此总要先等一轮。额度是分钟级指标，10 分钟内的缓存读数够用；超时的
+  // 账号仍会自动补刷，手动「查询额度」按钮永远全量刷新。
+  var QUOTA_AUTO_REFRESH_MS = 10 * 60 * 1000;
+
+  // staleQuotaAccounts 挑出需要自动补刷的账号（返回 auth_id 列表）。
+  //
+  // 判定：支持额度查询，且「没有缓存读数」或「读数时间缺失/早于阈值」。
+  // 时间解析失败按过期处理——宁可多查一次，也不让账号永远停在旧读数上。
+  function staleQuotaAccounts(maxAgeMs) {
+    var accounts = (lastStatus && lastStatus.accounts) || [];
+    var now = Date.now();
+    var out = [];
+    accounts.forEach(function (account) {
+      if (!account.supports_quota) return;
+      var id = String(account.auth_id || account.auth_index || account.file_id || "");
+      if (!id) return;
+      var quota = account.quota;
+      if (!quota) { out.push(id); return; }
+      var fetched = Date.parse(quota.fetched_at || "");
+      if (!isFinite(fetched) || now - fetched > maxAgeMs) out.push(id);
+    });
+    return out;
+  }
+
   // loadQuotas 查询账号额度（targets 为空表示全部）。
   //
   // 结果**不由页面截留**：后端查询时就把每个账号的结果写进自己的缓存，

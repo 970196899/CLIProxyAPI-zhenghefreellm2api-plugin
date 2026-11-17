@@ -417,7 +417,9 @@ func (s *Store) saveLocked() error {
 		return nil
 	}
 	s.cache.Version = Version
-	raw, errMarshal := json.MarshalIndent(s.cache, "", "  ")
+	// 不缩进：state.json 含模型缓存，缩进会让字节数与序列化耗时翻倍，
+	// 而这份文件只被本包读写（排查时用 jq 格式化即可）。
+	raw, errMarshal := json.Marshal(s.cache)
 	if errMarshal != nil {
 		return fmt.Errorf("marshal state: %w", errMarshal)
 	}

@@ -52,8 +52,15 @@ jobs:
       - name: race tests
         run: go test -race ./internal/core ./internal/state ./internal/auth ./internal/tasks ./internal/admin -count=1
 
+      # 带 live tag 的探针分散在两个地方：tests/live 包，以及各 vendor 目录下
+      # 的 *_live_test.go（如 workbuddy/stream_live_test.go）。后者不带 tag 时
+      # 整份文件被 build 约束排除，go test ./... 根本看不到它——只编 tests/live
+      # 会让这些文件在整个 CI 里一次都没被编译过，签名漂移要到本地手动跑探针
+      # 才暴露。这里把所有 vendor 目录一起编一遍（-run '^$' 只编译不执行）。
       - name: 编译 live 探针
-        run: go test -tags live ./tests/live -run '^$' -count=1
+        run: |
+          go test -tags live ./tests/live -run '^$' -count=1
+          go test -tags live ./internal/vendors/... -run '^$' -count=1
 
       - name: 校验 c-shared 编译
         run: go build -buildmode=c-shared -o /dev/null .

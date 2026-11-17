@@ -123,10 +123,198 @@ func (a *App) handleExecutorExecuteStream(request []byte) ([]byte, error) {
 //
 // 解析失败时原样返回：宁可不改写，也不要让一次对话因为本地 JSON 解析失败而中断——
 // 上游的真实报错比本地解析错误更有诊断价值（与 workbuddy.PrepareBody 同口径）。
+//
+// 实现上先走「定位顶层 model 值再原地拼接」的快路径（见 spliceModelValue）：
+// 请求体里唯一需要变的就是那一个字符串值，整份解成 map 再序列化一遍纯属浪费，
+// 而且 map 往返会把所有数字过成 float64（超过 2^53 的整数静默失真）、重排字段
+// 顺序。64KB 上下文实测 885µs → 11µs（修复前测得的数字，现在多了重复键检查
+// 的一次额外扫描，量级不变），大上下文下直接压在首字节延迟上。
+// 结构不合常规（没有顶层 model / model 不是字符串 / 值需要转义 / 字符串被截断 /
+// 重复 model 键）时回落到原来的整份改写。
+//
+// 边界：切点算不出来时才回落到整份改写；尾部残缺但切点安全的非法体（如
+// `{"model":"a"`）仍会被原地改写。两者都是非法 JSON，上游同样拒绝，差别只在
+// 报错文本，因此不值得为它多做一次合法性校验。
 func rewritePayloadModel(payload []byte, model string) []byte {
 	if len(payload) == 0 || strings.TrimSpace(model) == "" {
 		return payload
 	}
+	if encoded, okSplice := spliceModelValue(payload, model); okSplice {
+		return encoded
+	}
+	return rewritePayloadModelRoundTrip(payload, model)
+}
+
+// spliceModelValue 在顶层把 "model" 的字符串值原地替换成 model。
+//
+// 返回 ok=false 表示「这个请求体不适合原地拼接」，由调用方回落到整份改写。
+// 只认顶层（depth==1）的 model 键：messages / tools 里嵌套的同名键不能碰。
+func spliceModelValue(payload []byte, model string) ([]byte, bool) {
+	// 目标值里有需要转义的字符时不做拼接：那要把值按 JSON 转义规则处理，
+	// 交给整份改写更稳。模型 ID 实际上都是安全字符，这里只是兜底。
+	if strings.ContainsAny(model, "\"\\\n\r\t") {
+		return nil, false
+	}
+	n := len(payload)
+	i := 0
+	for i < n && isJSONSpace(payload[i]) {
+		i++
+	}
+	if i >= n || payload[i] != '{' {
+		return nil, false
+	}
+	depth := 0
+	for i < n {
+		switch payload[i] {
+		case '{', '[':
+			depth++
+			i++
+		case '}', ']':
+			depth--
+			i++
+		case '"':
+			start := i
+			i++
+			terminated := false
+			for i < n {
+				if payload[i] == '\\' {
+					i += 2
+					continue
+				}
+				if payload[i] == '"' {
+					i++
+					terminated = true
+					break
+				}
+				i++
+			}
+			// 扫描到 EOF 仍没见到闭合引号：字符串被截断，切点不可信。
+			// 少了这条判定，i 会停在 n 而 start+1 也可能等于 n，
+			// 下一步 payload[start+1:i-1] 就成了 payload[n:n-1]，直接 panic。
+			if !terminated {
+				return nil, false
+			}
+			if depth != 1 || !bytes.Equal(payload[start+1:i-1], []byte("model")) {
+				continue
+			}
+			// 跳过空白找冒号：冒号在说明这是键；否则这个 "model" 是字符串值，
+			// 不是我们要改的位置。
+			j := i
+			for j < n && isJSONSpace(payload[j]) {
+				j++
+			}
+			if j >= n || payload[j] != ':' {
+				continue
+			}
+			j++
+			for j < n && isJSONSpace(payload[j]) {
+				j++
+			}
+			if j >= n || payload[j] != '"' {
+				// model 的值不是字符串（null / 数字 / 对象）：交给整份改写。
+				return nil, false
+			}
+			k := j + 1
+			valueTerminated := false
+			for k < n {
+				if payload[k] == '\\' {
+					k += 2
+					continue
+				}
+				if payload[k] == '"' {
+					k++
+					valueTerminated = true
+					break
+				}
+				k++
+			}
+			// 值字符串同样必须见到闭合引号，否则拼接结果会丢掉后半截，
+			// 把用户原本的解析错误换成一条本地伪造的畸形 JSON。
+			if !valueTerminated {
+				return nil, false
+			}
+			out := make([]byte, 0, len(payload)+len(model)+2)
+			out = append(out, payload[:j]...)
+			out = append(out, '"')
+			out = append(out, model...)
+			out = append(out, '"')
+			out = append(out, payload[k:]...)
+			// 重复 model 键（非法但客户端会发）：快路径只改第一处，
+			// encoding/json 取最后一个同名键，改写就白做了。
+			// 发现第二处顶层 model 键就回落到整份改写。
+			if hasAnotherModelKey(payload, k) {
+				return nil, false
+			}
+			return out, true
+		default:
+			i++
+		}
+	}
+	return nil, false
+}
+
+// hasAnotherModelKey 报告 payload[from:] 里是否还有顶层 "model" 键。
+//
+// 只服务于「重复键回退」：快路径已经改写了第一处，若后面还有一处，
+// 整份改写才符合 encoding/json 取最后一个同名键的语义。
+// 同样不做越界假设——截断的尾巴按「没有」处理，让调用方沿用快路径结果。
+func hasAnotherModelKey(payload []byte, from int) bool {
+	n := len(payload)
+	// depth 从 1 起：调用方已确认 from 落在顶层对象内部，此处只沿着它往后扫。
+	depth := 1
+	i := from
+	for i < n {
+		switch payload[i] {
+		case '{', '[':
+			depth++
+			i++
+		case '}', ']':
+			depth--
+			i++
+		case '"':
+			start := i
+			i++
+			terminated := false
+			for i < n {
+				if payload[i] == '\\' {
+					i += 2
+					continue
+				}
+				if payload[i] == '"' {
+					i++
+					terminated = true
+					break
+				}
+				i++
+			}
+			if !terminated {
+				return false
+			}
+			if depth != 1 || !bytes.Equal(payload[start+1:i-1], []byte("model")) {
+				continue
+			}
+			j := i
+			for j < n && isJSONSpace(payload[j]) {
+				j++
+			}
+			if j < n && payload[j] == ':' {
+				return true
+			}
+		default:
+			i++
+		}
+	}
+	return false
+}
+
+func isJSONSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
+}
+
+// rewritePayloadModelRoundTrip 是慢路径：整份解成 map、改值、再序列化。
+//
+// 只在 spliceModelValue 判不出安全切点时使用（少见），语义与历史实现一致。
+func rewritePayloadModelRoundTrip(payload []byte, model string) []byte {
 	var obj map[string]any
 	if errUnmarshal := json.Unmarshal(payload, &obj); errUnmarshal != nil || obj == nil {
 		return payload
@@ -339,13 +527,22 @@ func (a *App) handleExecutorHTTPRequest(request []byte) ([]byte, error) {
 }
 
 // emitStreamChunk 把一段载荷推给宿主流。
+// streamEmitRequest 是 host.stream.emit 的请求体。
+//
+// 用结构体而不是 map[string]any：每帧都要序列化一次，map 要现建、反射遍历、
+// 9 次分配；结构体 1 次分配，单帧序列化耗时减半（见 BenchmarkStreamEmitRequestMarshal）。
+type streamEmitRequest struct {
+	StreamID string `json:"stream_id"`
+	Payload  []byte `json:"payload"`
+}
+
 func emitStreamChunk(callbackID, streamID string, payload []byte) error {
 	if strings.TrimSpace(streamID) == "" {
 		return fmt.Errorf("stream id is missing")
 	}
-	_, errCall := hostbridge.Call(callbackID, pluginabi.MethodHostStreamEmit, map[string]any{
-		"stream_id": streamID,
-		"payload":   payload,
+	_, errCall := hostbridge.Call(callbackID, pluginabi.MethodHostStreamEmit, &streamEmitRequest{
+		StreamID: streamID,
+		Payload:  payload,
 	})
 	if errCall != nil {
 		logger.Debug("推送流数据失败：%v", errCall)

@@ -462,29 +462,35 @@
   var vendorsById = {};
   var vendorsLoaded = false;
 
-  function loadVendors() {
-    return api("GET", "/vendors").then(function (data) {
-      var list = (data && data.vendors) || [];
-      vendorsById = {};
-      var menu = document.getElementById("addVendorMenu");
-      if (menu) menu.textContent = "";
-      list.forEach(function (vendor) {
-        vendorsById[vendor.id] = vendor;
-        if (!menu) return;
-        // 每一项就是「用这个供应商添加账号」的入口：点一下直接开始登录，
-        // 不再需要先选中再点按钮（两步变一步）。
-        var item = document.createElement("button");
-        item.type = "button";
-        item.textContent = vendor.name;
-        item.addEventListener("click", function () {
-          closeVendorMenu();
-          startVendorAdd(vendor);
-        });
-        menu.appendChild(item);
+  // applyVendors 把一份 /vendors 响应装进 vendorsById 与下拉菜单。
+  //
+  // 拆出来是为了让 probeManagementAuth 复用它的那次请求：首屏验证密钥与
+  // 加载供应商表是同一个 GET /vendors，不必发两遍。
+  function applyVendors(data) {
+    var list = (data && data.vendors) || [];
+    vendorsById = {};
+    var menu = document.getElementById("addVendorMenu");
+    if (menu) menu.textContent = "";
+    list.forEach(function (vendor) {
+      vendorsById[vendor.id] = vendor;
+      if (!menu) return;
+      // 每一项就是「用这个供应商添加账号」的入口：点一下直接开始登录，
+      // 不再需要先选中再点按钮（两步变一步）。
+      var item = document.createElement("button");
+      item.type = "button";
+      item.textContent = vendor.name;
+      item.addEventListener("click", function () {
+        closeVendorMenu();
+        startVendorAdd(vendor);
       });
-      vendorsLoaded = true;
-      return list;
-    }).catch(function (err) {
+      menu.appendChild(item);
+    });
+    vendorsLoaded = true;
+    return list;
+  }
+
+  function loadVendors() {
+    return api("GET", "/vendors").then(applyVendors).catch(function (err) {
       // 供应商列表拉不到不该让整页失效：账号表退化成显示原始 id。
       return [];
     });

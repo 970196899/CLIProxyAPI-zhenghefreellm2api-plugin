@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"sync"
 )
 
 //go:embed page/*.html
@@ -71,7 +72,25 @@ func assemblePage(fsys fs.FS) (string, error) {
 	return builder.String(), nil
 }
 
+// pageBytes 缓存按 basePath 渲染后的页面字节。
+//
+// 渲染一次要扫一遍整个页面（约 155KB）并重新拼字符串，而控制台每打开一次
+// 就要一次；basePath 只随插件 ID 变化，实际取值恒为一个，缓存后单次成本从
+// 「全量替换 + 分配」降到一次 map 查表。返回的切片是共享只读数据，调用方
+// 不得改写。
+var pageBytes sync.Map // basePath(string) -> []byte
+
+// PageBytes 返回可直接写进响应的页面字节（按 basePath 缓存）。
+func PageBytes(basePath string) []byte {
+	if cached, ok := pageBytes.Load(basePath); ok {
+		return cached.([]byte)
+	}
+	rendered := []byte(strings.NewReplacer("__BASE__", basePath).Replace(page))
+	pageBytes.Store(basePath, rendered)
+	return rendered
+}
+
 // Page 返回控制台页面（注入管理接口的 base path）。
 func Page(basePath string) string {
-	return strings.NewReplacer("__BASE__", basePath).Replace(page)
+	return string(PageBytes(basePath))
 }
