@@ -46,6 +46,8 @@ If this project helps you, a Star would mean a lot.
 
 ## Quick Start
 
+> **Read this first if you are upgrading from the `freetier` version**: delete the old `freetier.so` / `freetier.dll` from your CPA `plugins/` directory before installing the new build. Both libraries declare the same credential provider and use the same state directory (that is exactly why your accounts need no migration), so they **must not coexist** — running both makes two plugin instances write the same `state.json` and run the check-in tasks twice. Remove first, then install.
+
 ### Option 1: Install via CPA Plugin Store
 
 This repository ships its own `registry.json`, usable as a third-party plugin source. Add it in the CPA plugin-source settings:
@@ -56,6 +58,8 @@ https://raw.githubusercontent.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugi
 
 1. Open the CLIProxyAPI Admin Panel → **Plugin Store**.
 2. Search for **Zhenghe FreeLLM 2API** and click Install.
+
+After installing, rename the config section in `config.yaml` from `plugins.configs.freetier` to `plugins.configs.zhenghefreellm` (see the upgrade note below).
 
 ### Option 2: Manual Installation from Releases
 
@@ -72,6 +76,8 @@ plugins:
 ```
 
 > Upgrading from the `freetier` version: rename the whole `plugins.configs.freetier` section to `plugins.configs.zhenghefreellm` and remove the old `freetier` shared library. Accounts and the state directory need no migration.
+>
+> **If you had customized `state_dir`** in that section, carry it over too. Omitting it makes the plugin fall back to the default state directory and show zero accounts — the account files are still there, but it looks like the upgrade wiped them.
 
 ### Option 3: Build from Source
 

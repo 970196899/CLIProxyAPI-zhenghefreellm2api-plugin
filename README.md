@@ -46,6 +46,8 @@
 
 ## 快速开始
 
+> **从 `freetier` 版本升级的必读前置步骤**：先删除 CPA `plugins/` 目录下的旧 `freetier.so` / `freetier.dll`，再安装新版。新旧两库的凭证标识与状态目录完全相同（这正是账号无需迁移的原因），**不能共存**——同时存在会让两个插件实例写同一份 `state.json`、重复执行签到任务。宁可先删后装，也不要留着旧库"以防万一"。
+
 ### 方式一：通过 CPA 插件商店安装
 
 本仓库自带 `registry.json`，可作为三方插件源使用。在 CPA 的插件源配置里加入：
@@ -56,6 +58,8 @@ https://raw.githubusercontent.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugi
 
 1. 打开 CLIProxyAPI 管理面板 → **插件商店**。
 2. 搜索 **Zhenghe FreeLLM 2API** 并点击一键安装。
+
+安装后把 `config.yaml` 里的配置段从 `plugins.configs.freetier` 改名为 `plugins.configs.zhenghefreellm`（见下方升级说明）。
 
 ### 方式二：手动安装 Release 动态库
 
@@ -72,6 +76,8 @@ plugins:
 ```
 
 > 升级自 `freetier` 版本时：把 `plugins.configs.freetier` 整段改名为 `plugins.configs.zhenghefreellm`，并移除旧的 `freetier` 动态库。账号与状态目录不需要迁移。
+>
+> **若你曾自定义过该段里的 `state_dir`**，务必把这一项一并保留。漏掉它插件会回落到默认状态目录，页面显示零账号——账号文件其实还在原处没丢，但看起来像升级把号弄没了。
 
 ### 方式三：源码编译
 
