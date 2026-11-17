@@ -46,9 +46,9 @@
 
 ## 快速开始
 
-> **从 `freetier` 版本升级的必读前置步骤**：先删除 CPA `plugins/` 目录下的旧 `freetier.so` / `freetier.dll`，再安装新版。
+> **从 `freetier` 版本升级**：**先删掉 `plugins/` 下的旧 `freetier.so` / `freetier.dll`，再装新版，然后把 `config.yaml` 的配置段改名为 `plugins.configs.zhenghefreellm`。**
 >
-> 新旧两个插件**可以同时存在于同一进程内运行**（实测日志可见两者并行加载）——`plugins.configs.<id>.enabled` 控制的是加载/卸载，所以只要两个配置段都启用，两个实例就会同时活着。而两库的凭证标识与状态目录完全相同（这正是账号无需迁移的原因，`state_dir` 默认固定为 `~/.cli-proxy-api/freetier`，不随插件 ID 变化），同时启用会让两个实例写同一份 `state.json`、重复执行签到任务。最稳的做法是先删旧库，再装新版并同步改配置段名。
+> 原因：新旧两个插件**可以同时运行在同一进程内**（实测日志可见两者并行加载），而 `plugins.configs.<id>.enabled` 控制的是加载与卸载——只要两个配置段都启用，两个实例就都活着。两库又共用同一凭证标识与状态目录（`state_dir` 默认固定为 `~/.cli-proxy-api/freetier`，不随插件 ID 变化，这正是账号无需迁移的原因），同时启用会写同一份 `state.json`、重复执行签到任务。
 
 ### 方式一：通过 CPA 插件商店安装
 

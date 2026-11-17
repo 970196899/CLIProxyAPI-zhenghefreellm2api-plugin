@@ -115,7 +115,9 @@ func TestPluginIDMatchesLibraryName(t *testing.T) {
 		// 反向守卫同样只锚定产物路径。不能查全文的 "freetier."——
 		// Release 正文模板里正当提及「先删除旧的 freetier.dll」会误伤。
 		// 前缀 "dist/freetier" 同时覆盖点号、连字符与下划线三种形态。
-		for _, stale := range []string{"dist/freetier", "assets/freetier", "-id freetier"} {
+		// "name: freetier-" 覆盖 artifact 名（download-artifact 不依赖它，
+		// 但留着旧名会让 Release 页的产物列表看起来像没改干净）。
+		for _, stale := range []string{"dist/freetier", "assets/freetier", "-id freetier", "name: freetier-"} {
 			if strings.Contains(text, stale) {
 				t.Fatalf("%s 的构建产物配置仍残留旧 ID（命中 %q）", path, stale)
 			}

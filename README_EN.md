@@ -46,9 +46,9 @@ If this project helps you, a Star would mean a lot.
 
 ## Quick Start
 
-> **Read this first if you are upgrading from the `freetier` version**: delete the old `freetier.so` / `freetier.dll` from your CPA `plugins/` directory before installing the new build.
+> **Upgrading from `freetier`**: **delete the old `freetier.so` / `freetier.dll` from `plugins/` first, then install the new build, then rename the config section to `plugins.configs.zhenghefreellm`.**
 >
-> The old and new plugins **can run side by side in the same process** — observed logs show both loaded concurrently. `plugins.configs.<id>.enabled` controls loading/unloading, so as long as both config sections are enabled, both instances are live. They also share the same credential provider and state directory (that is exactly why your accounts need no migration; `state_dir` defaults to a fixed `~/.cli-proxy-api/freetier` and does not vary by plugin ID), so running both makes two instances write the same `state.json` and run the check-in tasks twice. Remove the old library first, then install the new build and rename the config section.
+> Why: the old and new plugins **can run side by side in the same process** (observed logs show both loaded concurrently), and `plugins.configs.<id>.enabled` is what controls loading and unloading — as long as both sections are enabled, both instances stay live. They also share the same credential provider and state directory (`state_dir` defaults to a fixed `~/.cli-proxy-api/freetier` and does not vary by plugin ID, which is exactly why your accounts need no migration), so running both makes two instances write the same `state.json` and run the check-in tasks twice.
 
 ### Option 1: Install via CPA Plugin Store
 
