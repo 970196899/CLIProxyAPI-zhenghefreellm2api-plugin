@@ -85,14 +85,14 @@ func TestRewritePayloadModelInvalidJSON(t *testing.T) {
 // //export cliproxyPluginCall 的 C 边界，abort 整个宿主进程——所有供应商
 // 同时中断。这里逐条锁死，任何一条 panic 都算回归。
 func TestRewritePayloadModelTruncatedString(t *testing.T) {
-	// 每条都是「扫描到 EOF 也没见到闭合引号」的真实截断形态。
+	// 每条都是「扫描到 EOF 也没见到闭合引号」的真实截断形态：
+	// 快路径判不出安全切点，必须原样返回。
 	payloads := []string{
 		`{"`,
 		`{ "`,
 		`{"a":1,"`,
 		`{"messages":["`,
 		`{"model":"`,
-		`{"model":"a","`,
 		`{"\`,
 		`{"model":"a\`,
 	}
@@ -103,6 +103,25 @@ func TestRewritePayloadModelTruncatedString(t *testing.T) {
 			if !bytes.Equal(got, []byte(payload)) {
 				t.Fatalf("truncated payload must be returned unchanged\n got: %q\nwant: %q", got, payload)
 			}
+		})
+	}
+}
+
+// TestRewritePayloadModelTruncatedNoPanic 截断但字符串本身完整闭合的形态：
+// 改写与否都合法，唯一硬要求是**不能 panic**。
+//
+// 与上一个用例的区别：`{"model":"a","` 的 model 值已经闭合，快路径能安全
+// 改写；切点之外那个悬空的 `"` 不影响结果的有效性。panic 才是缺陷。
+func TestRewritePayloadModelTruncatedNoPanic(t *testing.T) {
+	payloads := []string{
+		`{"model":"a","`,
+		`{"model":"a"`,
+		`{"model":"a",`,
+	}
+	for _, payload := range payloads {
+		t.Run(payload, func(t *testing.T) {
+			// 不 recover、不断言内容：只要这一行能返回，就说明没 panic。
+			_ = rewritePayloadModel([]byte(payload), "official/model")
 		})
 	}
 }
