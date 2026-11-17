@@ -76,6 +76,62 @@ func TestRewritePayloadModelInvalidJSON(t *testing.T) {
 	}
 }
 
+// TestRewritePayloadModelTruncatedString 截断在字符串里的非法 JSON 必须原样
+// 返回，而不是在切点计算时越界。
+//
+// 上游 c2c1e66 引入的快路径用 payload[start+1:i-1] 取键名，扫描到 EOF 时
+// i 与 start+1 可能相等，切片变成 payload[n:n-1]，Go 运行期直接 panic
+// （slice bounds out of range）。仓库内没有任何 recover，panic 会穿过
+// //export cliproxyPluginCall 的 C 边界，abort 整个宿主进程——所有供应商
+// 同时中断。这里逐条锁死，任何一条 panic 都算回归。
+func TestRewritePayloadModelTruncatedString(t *testing.T) {
+	// 每条都是「扫描到 EOF 也没见到闭合引号」的真实截断形态。
+	payloads := []string{
+		`{"`,
+		`{ "`,
+		`{"a":1,"`,
+		`{"messages":["`,
+		`{"model":"`,
+		`{"model":"a","`,
+		`{"\`,
+		`{"model":"a\`,
+	}
+	for _, payload := range payloads {
+		t.Run(payload, func(t *testing.T) {
+			// 不做 recover：真 panic 就让整条用例炸掉，这才是有判别力的断言。
+			got := rewritePayloadModel([]byte(payload), "official/model")
+			if !bytes.Equal(got, []byte(payload)) {
+				t.Fatalf("truncated payload must be returned unchanged\n got: %q\nwant: %q", got, payload)
+			}
+		})
+	}
+}
+
+// TestRewritePayloadModelUnterminatedValue 值字符串未闭合时不得伪造成
+// 「改写成功」的畸形 JSON。
+func TestRewritePayloadModelUnterminatedValue(t *testing.T) {
+	payload := []byte(`{"model":"old`)
+	got := rewritePayloadModel(payload, "new")
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("unterminated value must be returned unchanged\n got: %q\nwant: %q", got, payload)
+	}
+}
+
+// TestRewritePayloadModelDuplicateModelKey 重复 model 键时走慢路径，
+// 保证「最后一个同名键生效」的解析器语义也拿到官方 ID。
+func TestRewritePayloadModelDuplicateModelKey(t *testing.T) {
+	payload := []byte(`{"model":"a","model":"b"}`)
+	got := rewritePayloadModel(payload, "official")
+	var obj map[string]any
+	if errUnmarshal := json.Unmarshal(got, &obj); errUnmarshal != nil {
+		t.Fatalf("output must stay valid JSON: %v (%s)", errUnmarshal, got)
+	}
+	// encoding/json 取最后一个同名键，因此最终值必须是官方 ID。
+	if obj["model"] != "official" {
+		t.Fatalf("model = %v, want official (last duplicate key must win)", obj["model"])
+	}
+}
+
 // benchRequestPayload 造一个带长上下文的请求体。
 func benchRequestPayload(size int) []byte {
 	var builder strings.Builder

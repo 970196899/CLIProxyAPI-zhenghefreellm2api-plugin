@@ -170,6 +170,7 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 		case '"':
 			start := i
 			i++
+			terminated := false
 			for i < n {
 				if payload[i] == '\\' {
 					i += 2
@@ -177,11 +178,15 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 				}
 				if payload[i] == '"' {
 					i++
+					terminated = true
 					break
 				}
 				i++
 			}
-			if i > n {
+			// 扫描到 EOF 仍没见到闭合引号：字符串被截断，切点不可信。
+			// 少了这条判定，i 会停在 n 而 start+1 也可能等于 n，
+			// 下一步 payload[start+1:i-1] 就成了 payload[n:n-1]，直接 panic。
+			if !terminated {
 				return nil, false
 			}
 			if depth != 1 || !bytes.Equal(payload[start+1:i-1], []byte("model")) {
@@ -205,6 +210,7 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 				return nil, false
 			}
 			k := j + 1
+			valueTerminated := false
 			for k < n {
 				if payload[k] == '\\' {
 					k += 2
@@ -212,11 +218,14 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 				}
 				if payload[k] == '"' {
 					k++
+					valueTerminated = true
 					break
 				}
 				k++
 			}
-			if k > n {
+			// 值字符串同样必须见到闭合引号，否则拼接结果会丢掉后半截，
+			// 把用户原本的解析错误换成一条本地伪造的畸形 JSON。
+			if !valueTerminated {
 				return nil, false
 			}
 			out := make([]byte, 0, len(payload)+len(model)+2)
@@ -225,12 +234,71 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 			out = append(out, model...)
 			out = append(out, '"')
 			out = append(out, payload[k:]...)
+			// 重复 model 键（非法但客户端会发）：快路径只改第一处，
+			// encoding/json 取最后一个同名键，改写就白做了。
+			// 发现第二处顶层 model 键就回落到整份改写。
+			if hasAnotherModelKey(payload, k) {
+				return nil, false
+			}
 			return out, true
 		default:
 			i++
 		}
 	}
 	return nil, false
+}
+
+// hasAnotherModelKey 报告 payload[from:] 里是否还有顶层 "model" 键。
+//
+// 只服务于「重复键回退」：快路径已经改写了第一处，若后面还有一处，
+// 整份改写才符合 encoding/json 取最后一个同名键的语义。
+// 同样不做越界假设——截断的尾巴按「没有」处理，让调用方沿用快路径结果。
+func hasAnotherModelKey(payload []byte, from int) bool {
+	n := len(payload)
+	depth := 1 // 已确认 payload[0]=='{'，从键值区继续
+	i := from
+	for i < n {
+		switch payload[i] {
+		case '{', '[':
+			depth++
+			i++
+		case '}', ']':
+			depth--
+			i++
+		case '"':
+			start := i
+			i++
+			terminated := false
+			for i < n {
+				if payload[i] == '\\' {
+					i += 2
+					continue
+				}
+				if payload[i] == '"' {
+					i++
+					terminated = true
+					break
+				}
+				i++
+			}
+			if !terminated {
+				return false
+			}
+			if depth != 1 || !bytes.Equal(payload[start+1:i-1], []byte("model")) {
+				continue
+			}
+			j := i
+			for j < n && isJSONSpace(payload[j]) {
+				j++
+			}
+			if j < n && payload[j] == ':' {
+				return true
+			}
+		default:
+			i++
+		}
+	}
+	return false
 }
 
 func isJSONSpace(c byte) bool {
@@ -456,7 +524,7 @@ func (a *App) handleExecutorHTTPRequest(request []byte) ([]byte, error) {
 // streamEmitRequest 是 host.stream.emit 的请求体。
 //
 // 用结构体而不是 map[string]any：每帧都要序列化一次，map 要现建、反射遍历、
-// 9 次分配；结构体 1 次分配，单帧序列化耗时减半（见 TestStreamEmitPayloadBench）。
+// 9 次分配；结构体 1 次分配，单帧序列化耗时减半（见 BenchmarkStreamEmitRequestMarshal）。
 type streamEmitRequest struct {
 	StreamID string `json:"stream_id"`
 	Payload  []byte `json:"payload"`

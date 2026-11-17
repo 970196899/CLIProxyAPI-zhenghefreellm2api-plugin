@@ -19,7 +19,7 @@
    - `internal/vendors/workbuddy/chat.go` + 相关测试：流式帧改结构体白名单解析、请求体解码改用 `UseNumber`、丢弃 `: heartbeat` 等 SSE 注释行。
 3. **`a639f23`（v0.1.62）**：
    - `internal/admin/admin.go`、`console.go`、`console_test.go`：按 `basePath` 缓存 `PageBytes`；
-   - `internal/admin/page/{20-core,40-quota,80-columns}.html`：复⽤鉴权探针 `GET /vendors`、首屏先渲染 `/status` 缓存并仅自动刷新超过 10 分钟或缺失缓存的过期额度（`QUOTA_AUTO_REFRESH_MS = 10 * 60 * 1000`），手动查询仍全量刷新。
+   - `internal/admin/page/{20-core,40-quota,80-columns}.html`：复用鉴权探针 `GET /vendors`、首屏先渲染 `/status` 缓存并仅自动刷新超过 10 分钟或缺失缓存的过期额度（`QUOTA_AUTO_REFRESH_MS = 10 * 60 * 1000`），手动查询仍全量刷新。
 
 本次目标是将上述 3 个提交完整合入当前仓库，同时**完整保留 PR #1（`e810ec3`）的所有修复与测试守卫**，经 CI 全绿验证后合并 `main` 并发布 `v0.1.62`。
 
