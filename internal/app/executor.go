@@ -127,9 +127,14 @@ func (a *App) handleExecutorExecuteStream(request []byte) ([]byte, error) {
 // 实现上先走「定位顶层 model 值再原地拼接」的快路径（见 spliceModelValue）：
 // 请求体里唯一需要变的就是那一个字符串值，整份解成 map 再序列化一遍纯属浪费，
 // 而且 map 往返会把所有数字过成 float64（超过 2^53 的整数静默失真）、重排字段
-// 顺序。64KB 上下文实测 885µs → 11µs，大上下文下直接压在首字节延迟上。
-// 结构不合常规（没有顶层 model / model 不是字符串 / 值需要转义 / 非法 JSON）时
-// 回落到原来的整份改写，行为与旧实现完全一致。
+// 顺序。64KB 上下文实测 885µs → 11µs（修复前测得的数字，现在多了重复键检查
+// 的一次额外扫描，量级不变），大上下文下直接压在首字节延迟上。
+// 结构不合常规（没有顶层 model / model 不是字符串 / 值需要转义 / 字符串被截断 /
+// 重复 model 键）时回落到原来的整份改写。
+//
+// 边界：切点算不出来时才回落到整份改写；尾部残缺但切点安全的非法体（如
+// `{"model":"a"`）仍会被原地改写。两者都是非法 JSON，上游同样拒绝，差别只在
+// 报错文本，因此不值得为它多做一次合法性校验。
 func rewritePayloadModel(payload []byte, model string) []byte {
 	if len(payload) == 0 || strings.TrimSpace(model) == "" {
 		return payload
@@ -255,7 +260,8 @@ func spliceModelValue(payload []byte, model string) ([]byte, bool) {
 // 同样不做越界假设——截断的尾巴按「没有」处理，让调用方沿用快路径结果。
 func hasAnotherModelKey(payload []byte, from int) bool {
 	n := len(payload)
-	depth := 1 // 已确认 payload[0]=='{'，从键值区继续
+	// depth 从 1 起：调用方已确认 from 落在顶层对象内部，此处只沿着它往后扫。
+	depth := 1
 	i := from
 	for i < n {
 		switch payload[i] {
