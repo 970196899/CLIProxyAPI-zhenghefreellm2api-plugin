@@ -129,23 +129,39 @@ func TestStreamPassesThroughErrorFrames(t *testing.T) {
 	}
 }
 
-// TestNormalizeFrameDropsUnknownFields 验证帧白名单在非流式路径也生效。
-func TestNormalizeFrameDropsUnknownFields(t *testing.T) {
-	frame := map[string]any{
-		"id": "c1", "secret": "leak",
-		"choices": []any{map[string]any{"index": float64(0), "delta": map[string]any{"content": "hi", "private": 1}}},
+// TestStreamDropsUnknownFields 验证帧白名单（含 delta 内层）在流式路径生效。
+func TestStreamDropsUnknownFields(t *testing.T) {
+	stream := strings.Join([]string{
+		`data: {"id":"c1","object":"chat.completion.chunk","secret":"leak","choices":[{"index":0,"delta":{"content":"hi","private":1},"finish_reason":""}],"usage":null}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+
+	var frames [][]byte
+	if _, errStream := Stream(strings.NewReader(stream), StreamOptions{
+		Emit: func(payload []byte) error {
+			frames = append(frames, append([]byte(nil), payload...))
+			return nil
+		},
+	}); errStream != nil {
+		t.Fatalf("Stream: %v", errStream)
 	}
-	normalized := normalizeFrame(frame)
-	if _, okSecret := normalized["secret"]; okSecret {
-		t.Fatal("unknown top-level field must be dropped")
+	if len(frames) != 1 {
+		t.Fatalf("expected 1 frame, got %d", len(frames))
 	}
-	choices := normalized["choices"].([]any)
-	delta := choices[0].(map[string]any)["delta"].(map[string]any)
-	if _, okPrivate := delta["private"]; okPrivate {
-		t.Fatal("unknown delta field must be dropped")
+	frame := string(frames[0])
+	if strings.Contains(frame, "secret") || strings.Contains(frame, "private") {
+		t.Fatalf("unknown fields must be dropped: %s", frame)
 	}
-	if delta["content"] != "hi" {
-		t.Fatal("known delta fields must survive")
+	if !strings.Contains(frame, `"content":"hi"`) {
+		t.Fatalf("known delta fields must survive: %s", frame)
+	}
+	if !strings.Contains(frame, `"finish_reason":null`) {
+		t.Fatalf("empty finish_reason must normalize to null: %s", frame)
+	}
+	if !strings.Contains(frame, `"usage":null`) {
+		t.Fatalf("usage key must always be present: %s", frame)
 	}
 }
 
