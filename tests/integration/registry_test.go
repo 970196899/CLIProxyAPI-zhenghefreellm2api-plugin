@@ -106,12 +106,19 @@ func TestPluginIDMatchesLibraryName(t *testing.T) {
 			t.Fatalf("read %s: %v", path, errRead)
 		}
 		text := string(raw)
-		if !strings.Contains(text, app.PluginID) {
-			t.Fatalf("%s 没有使用 pluginID %q 拼产物名：改名后漏改构建配置会让宿主找不到动态库", path, app.PluginID)
+		// 正向守卫锚定在产物路径上，而不是全文任意位置：仓库 URL 里也含
+		// "zhenghefreellm"，只查全文会被 URL 单独满足、失去判别力。
+		if !strings.Contains(text, "dist/"+app.PluginID) {
+			t.Fatalf("%s 没有用 pluginID %q 拼产物路径（期望 dist/%s...）：改名后漏改构建配置会让宿主找不到动态库",
+				path, app.PluginID, app.PluginID)
 		}
-		// 反向守卫：构建配置里不该再出现旧 ID。
-		if strings.Contains(text, "freetier.") || strings.Contains(text, "freetier_") || strings.Contains(text, "-id freetier") {
-			t.Fatalf("%s 仍残留旧的 freetier 产物名", path)
+		// 反向守卫同样只锚定产物路径。不能查全文的 "freetier."——
+		// Release 正文模板里正当提及「先删除旧的 freetier.dll」会误伤。
+		// 前缀 "dist/freetier" 同时覆盖点号、连字符与下划线三种形态。
+		for _, stale := range []string{"dist/freetier", "assets/freetier", "-id freetier"} {
+			if strings.Contains(text, stale) {
+				t.Fatalf("%s 的构建产物配置仍残留旧 ID（命中 %q）", path, stale)
+			}
 		}
 	}
 }

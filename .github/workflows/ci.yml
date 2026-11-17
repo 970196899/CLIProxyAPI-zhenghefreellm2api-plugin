@@ -214,6 +214,11 @@ jobs:
             echo "::warning::${TAG} 不是注解标签，本版要点只会有 commit 标题"
           fi
           {
+            echo '> **从旧版升级（插件 ID 由 `freetier` 改为 `zhenghefreellm`）**：'
+            echo '> 先删掉 `plugins/` 下的旧动态库，再装新版——两个插件可以同时运行在同一进程内，'
+            echo '> 且共用凭证标识与状态目录，同时启用会写同一份 `state.json`、重复执行签到。'
+            echo '> 装好后把 `config.yaml` 的配置段从 `plugins.configs.freetier` 改名为 `plugins.configs.zhenghefreellm`。'
+            echo
             echo '## 安装方式'
             echo
             echo '**方式一：插件商店（推荐）** 在 CPA 的插件源里加入本仓库的 `registry.json`：'
