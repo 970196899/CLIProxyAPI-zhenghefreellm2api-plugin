@@ -1,4 +1,4 @@
-# FreeTier 2API Plugin
+# Zhenghe FreeLLM 2API Plugin
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![CLIProxyAPI](https://img.shields.io/badge/CLIProxyAPI-Plugin-2496ED?style=flat)](https://github.com/router-for-me/CLIProxyAPI)
@@ -10,7 +10,7 @@ A native dynamic library plugin that connects multiple free-tier AI providers to
 
 If this project helps you, a Star would mean a lot.
 
-> **About this repository**: the original repository `jiandanc/CLIProxyAPI-freetier2api-plugin` disappeared from GitHub together with its owner's account (both the account and the repository return 404). This repository continues that line; from **v0.1.29** onward it is maintained by `cxy2730`. The plugin ID stays `freetier`, so existing installations can upgrade in place. History and all tags up to `v0.1.28` are preserved.
+> **About this repository**: the original repository `jiandanc/CLIProxyAPI-freetier2api-plugin` disappeared from GitHub together with its owner's account (both the account and the repository return 404). It was maintained by `cxy2730` through `v0.1.62`, during which the plugin ID was `freetier`. **From `v0.1.63` this repository is independently maintained by `970196899`; the plugin ID is now `zhenghefreellm` and the display name is `Zhenghe FreeLLM 2API`, with the build output and store archive renamed accordingly.** The ID change makes this a **replacement install**: swap the old `freetier` shared library for the new `zhenghefreellm` one, and rename the config section from `plugins.configs.freetier` to `plugins.configs.zhenghefreellm`. **Credentials and state need no migration** — the internal `ProviderKey` is still `freetier` and the state directory is still `~/.freetier-plugin`, so existing accounts carry over. History and all tags up to `v0.1.44` are preserved in the archive repository `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`.
 
 ## Features
 
@@ -46,38 +46,52 @@ If this project helps you, a Star would mean a lot.
 
 ## Quick Start
 
+> **Upgrading from `freetier`**: **delete the old `freetier.so` / `freetier.dll` from `plugins/` first, then install the new build, then rename the config section to `plugins.configs.zhenghefreellm`.**
+>
+> Why: the old and new plugins **can run side by side in the same process** (observed logs show both loaded concurrently), and `plugins.configs.<id>.enabled` is what controls loading and unloading — as long as both sections are enabled, both instances stay live. They also share the same credential provider and state directory (`state_dir` defaults to a fixed `~/.cli-proxy-api/freetier` and does not vary by plugin ID, which is exactly why your accounts need no migration), so running both makes two instances write the same `state.json` and run the check-in tasks twice.
+
 ### Option 1: Install via CPA Plugin Store
 
-This plugin was listed in the official CLIProxyAPI plugin registry, but that entry still points at the now-dead original repository, so one-click install fails until the registry is updated:
+This repository ships its own `registry.json`, usable as a third-party plugin source. Add it in the CPA plugin-source settings:
+
+```text
+https://raw.githubusercontent.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/main/registry.json
+```
 
 1. Open the CLIProxyAPI Admin Panel → **Plugin Store**.
-2. Search for **FreeTier 2API** and click Install (use Option 2 until the entry is fixed).
+2. Search for **Zhenghe FreeLLM 2API** and click Install.
+
+After installing, rename the config section in `config.yaml` from `plugins.configs.freetier` to `plugins.configs.zhenghefreellm` (see the upgrade note below).
 
 ### Option 2: Manual Installation from Releases
 
-Download the archive for your platform from [Releases](https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin/releases), extract the shared library (`freetier.so` / `freetier.dylib` / `freetier.dll`) into your CPA plugins directory, and enable it in `config.yaml`:
+Download the archive for your platform from [Releases](https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/releases), extract the shared library (`zhenghefreellm.so` / `zhenghefreellm.dylib` / `zhenghefreellm.dll`) into your CPA plugins directory, and enable it in `config.yaml`:
 
 ```yaml
 plugins:
   enabled: true
   dir: "/path/to/cpa/plugins"
   configs:
-    freetier:
+    zhenghefreellm:
       enabled: true
       enabled_realms: "cn,global"
 ```
+
+> Upgrading from the `freetier` version: rename the whole `plugins.configs.freetier` section to `plugins.configs.zhenghefreellm` and remove the old `freetier` shared library. Accounts and the state directory need no migration.
+>
+> **If you had customized `state_dir`** in that section, carry it over too. Omitting it makes the plugin fall back to the default state directory and show zero accounts — the account files are still there, but it looks like the upgrade wiped them.
 
 ### Option 3: Build from Source
 
 Requires Go 1.22+ and a C compiler (`CGO_ENABLED=1`), or use the bundled Docker build script (`golang:1.24` Debian glibc image):
 
 ```bash
-git clone https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin.git
-cd CLIProxyAPI-freetier2api-plugin
+git clone https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin.git
+cd CLIProxyAPI-zhenghefreellm2api-plugin
 ./scripts/build.sh
 ```
 
-The compiled shared library is written to `dist/freetier.<so|dylib|dll>`.
+The compiled shared library is written to `dist/zhenghefreellm.<so|dylib|dll>`.
 
 ## Usage
 
@@ -86,7 +100,7 @@ The compiled shared library is written to `dist/freetier.<so|dylib|dll>`.
 Once CLIProxyAPI is running, open the embedded console:
 
 ```text
-http://<CPA-HOST>:8317/v0/resource/plugins/freetier/console
+http://<CPA-HOST>:8317/v0/resource/plugins/zhenghefreellm/console
 ```
 
 - Click **"添加账号 ▾" (Add Account)**, choose a provider, and complete the browser OAuth flow or enter an API Key (no account cap).
@@ -123,7 +137,7 @@ Aliases are stored in `state.json` under `account_aliases`, keyed by account ide
 
 ## Configuration
 
-Configure under `plugins.configs.freetier` in `config.yaml` (runtime settings can also be toggled live in the web console):
+Configure under `plugins.configs.zhenghefreellm` in `config.yaml` (runtime settings can also be toggled live in the web console):
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |

@@ -203,6 +203,12 @@ func closeHost() {
 //
 // 级别名右补空格到 5 字符（宿主输出 "[warn ]"、"\[info ]"），
 // 请求 ID 段在没有上下文时用 "--------" 占位，来源段用插件包名。
+//
+// 这里的 "freetier.go:0" / "freetier" 是**刻意保留**的：它是宿主日志行的
+// 来源段格式，与插件对外身份（plugins.configs 键、动态库名）解耦。SPEC
+// 明确把日志标签列为禁改项——已有安装的日志检索规则、告警匹配都按这个
+// 标签写的，改名会让这些解析静默失效。要改必须连 hostsink_test.go 的
+// 格式断言一起改，且需要用户明确同意。
 func formatHostLine(now time.Time, label string, message string) string {
 	return fmt.Sprintf("[%s] [--------] [%-5s] [freetier.go:0] [freetier] %s\n",
 		now.Format("2006-01-02 15:04:05"), strings.ToLower(label), message)

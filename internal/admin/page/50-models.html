@@ -320,7 +320,7 @@
     modelSyncTimer = null;
     if (modelSyncRunning) { modelSyncPending = true; return; }
     modelSyncRunning = true;
-    var configPath = hostPath("/plugins/freetier/config");
+    var configPath = hostPath(BASE + "/config");
     api("GET", configPath).then(function (config) {
       // GET 返回的可能是空对象（该插件段尚未落过自定义配置），补成对象再合并。
       var body = (config && typeof config === "object") ? config : {};

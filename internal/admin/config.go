@@ -13,7 +13,7 @@ import (
 	"freetier2api-plugin/internal/core"
 )
 
-// PluginConfig 是 plugins.configs.freetier 解析出的有效全局配置。
+// PluginConfig 是 plugins.configs.<pluginID>（当前为 zhenghefreellm）解析出的有效全局配置。
 type PluginConfig struct {
 	// EnabledRealms 是启用的域：逗号分隔的 cn / global 子集。
 	EnabledRealms []string

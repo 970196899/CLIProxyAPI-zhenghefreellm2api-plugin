@@ -7,7 +7,7 @@
   // HOST_MGMT 是**宿主**提供的管理接口前缀（OAuth 登录等）。
   //
   // 这两个不能混用：宿主按 "/v0/management/<provider>-auth-url" 从路径里
-  // 提取 provider，若带上插件前缀会得到 "plugins/freetier/workbuddy"，
+  // 提取 provider，若带上插件前缀会得到 "plugins/<id>/workbuddy"，
   // 校验失败直接 404（页面表现为 "The string did not match the expected pattern."）。
   var HOST_MGMT = "/v0/management";
   var stopped = false;

@@ -86,15 +86,42 @@ func TestRegistryManifestIsValid(t *testing.T) {
 	}
 }
 
-// TestPluginIDMatchesLibraryName 验证插件 ID 与产物名一致。
+// TestPluginIDMatchesLibraryName 验证插件 ID 与构建产物名一致。
 //
 // 宿主按 {id}{ext} 找动态库；ID 与文件名不一致会让插件静默不被加载。
+// 只断言常量等于字面量还不够——真正会脱节的是构建配置，所以这里直接读
+// ci.yml 与 build.sh，确认它们也在用同一个 ID 拼产物名。
 func TestPluginIDMatchesLibraryName(t *testing.T) {
-	if app.PluginID != "freetier" {
+	if app.PluginID != "zhenghefreellm" {
 		t.Fatalf("app.PluginID = %q; changing it requires renaming the build output and registry", app.PluginID)
 	}
 	if app.ProviderKey != core.ProviderKey {
 		t.Fatalf("app.ProviderKey (%q) must match core.ProviderKey (%q)", app.ProviderKey, core.ProviderKey)
+	}
+
+	// 构建侧必须跟着改：任一处漏改都会让产物名与 ID 脱节，发版后宿主加载不到。
+	for _, path := range []string{"../../.github/workflows/ci.yml", "../../scripts/build.sh"} {
+		raw, errRead := os.ReadFile(path)
+		if errRead != nil {
+			t.Fatalf("read %s: %v", path, errRead)
+		}
+		text := string(raw)
+		// 正向守卫锚定在产物路径上，而不是全文任意位置：仓库 URL 里也含
+		// "zhenghefreellm"，只查全文会被 URL 单独满足、失去判别力。
+		if !strings.Contains(text, "dist/"+app.PluginID) {
+			t.Fatalf("%s 没有用 pluginID %q 拼产物路径（期望 dist/%s...）：改名后漏改构建配置会让宿主找不到动态库",
+				path, app.PluginID, app.PluginID)
+		}
+		// 反向守卫同样只锚定产物路径。不能查全文的 "freetier."——
+		// Release 正文模板里正当提及「先删除旧的 freetier.dll」会误伤。
+		// 前缀 "dist/freetier" 同时覆盖点号、连字符与下划线三种形态。
+		// "name: freetier-" 覆盖 artifact 名（download-artifact 不依赖它，
+		// 但留着旧名会让 Release 页的产物列表看起来像没改干净）。
+		for _, stale := range []string{"dist/freetier", "assets/freetier", "-id freetier", "name: freetier-"} {
+			if strings.Contains(text, stale) {
+				t.Fatalf("%s 的构建产物配置仍残留旧 ID（命中 %q）", path, stale)
+			}
+		}
 	}
 }
 
