@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	pluginID          = "freetier"
-	pluginDisplayName = "FreeTier 2API"
-	pluginAuthor      = "cxy2730"
-	pluginRepository  = "https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin"
+	pluginID          = "zhenghefreellm"
+	pluginDisplayName = "Zhenghe FreeLLM 2API"
+	pluginAuthor      = "970196899"
+	pluginRepository  = "https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin"
 
 	providerKey           = core.ProviderKey
 	managementRoutePrefix = "/plugins/" + pluginID
@@ -73,8 +73,8 @@ func (a *App) HandleMethod(method string, request []byte) ([]byte, error) {
 
 	case pluginabi.MethodAuthIdentifier:
 		// 面板「OAuth 登录」列表只渲染 oauth_provider 非空的插件（前端过滤
-		// `!r` 直接跳过），所以这里不发布任何 OAuth 标识：FreeTier 2API 不出现
-		// 在该列表里，登录/添加账号只走插件自己的控制台。
+		// `!r` 直接跳过），所以这里不发布任何 OAuth 标识：Zhenghe FreeLLM 2API
+		// 不出现在该列表里，登录/添加账号只走插件自己的控制台。
 		// 但必须同时用 credential_providers 认领 auth 文件里的 type=freetier，
 		// 否则宿主的 authProviderEntry 会认不出这些凭证，模型与执行器全部掉线。
 		return core.OKEnvelope(identifierResponse{CredentialProviders: []string{providerKey}})

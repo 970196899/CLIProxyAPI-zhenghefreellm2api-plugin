@@ -1,4 +1,4 @@
-# FreeTier 2API Plugin
+# Zhenghe FreeLLM 2API Plugin
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![CLIProxyAPI](https://img.shields.io/badge/CLIProxyAPI-Plugin-2496ED?style=flat)](https://github.com/router-for-me/CLIProxyAPI)
@@ -10,7 +10,7 @@
 
 如果这个项目帮到了你，欢迎点个 Star 支持一下。
 
-> **本仓库说明**：上游 `jiandanc/CLIProxyAPI-freetier2api-plugin` 已随作者账号一并从 GitHub 消失（账号与仓库均为 404）。本仓库自 **v0.1.29** 起由 `cxy2730` 接手维护，插件 ID 仍为 `freetier`，已有安装可直接覆盖升级。仓库已从 fork 网络脱离，是独立仓库；完整提交历史保留，`v0.1.44` 及更早的 tag 只存在于归档仓库 `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`，本仓库从 `v0.1.45` 起继续发版。
+> **本仓库说明**：上游 `jiandanc/CLIProxyAPI-freetier2api-plugin` 已随作者账号一并从 GitHub 消失（账号与仓库均为 404）。此后由 `cxy2730` 接手维护至 `v0.1.62`：该阶段插件 ID 为 `freetier`。**自 `v0.1.63` 起本仓库由 `970196899` 独立维护，插件 ID 改为 `zhenghefreellm`，显示名为 `Zhenghe FreeLLM 2API`，构建产物与商店归档同步改名。** 插件 ID 变化意味着这是一次**替换安装**：旧的 `freetier` 动态库需换成新的 `zhenghefreellm` 动态库，`config.yaml` 里的配置段也要从 `plugins.configs.freetier` 改为 `plugins.configs.zhenghefreellm`；**凭证与状态无需迁移**——内部 `ProviderKey` 仍是 `freetier`，状态目录仍是 `~/.freetier-plugin`，原有账号可直接沿用。完整提交历史保留，`v0.1.44` 及更早的 tag 只存在于归档仓库 `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`。
 
 ## 功能特性
 
@@ -48,36 +48,42 @@
 
 ### 方式一：通过 CPA 插件商店安装
 
-本插件曾收录于 CLIProxyAPI 官方插件源，但插件源里的条目目前仍指向已失效的原仓库地址，一键安装会失败，待插件源更新后恢复：
+本仓库自带 `registry.json`，可作为三方插件源使用。在 CPA 的插件源配置里加入：
+
+```text
+https://raw.githubusercontent.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/main/registry.json
+```
 
 1. 打开 CLIProxyAPI 管理面板 → **插件商店**。
-2. 搜索 **FreeTier 2API** 并点击一键安装（条目恢复前请用方式二）。
+2. 搜索 **Zhenghe FreeLLM 2API** 并点击一键安装。
 
 ### 方式二：手动安装 Release 动态库
 
-从 [Releases](https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin/releases) 下载对应平台的归档包，解压后将动态库（`freetier.so` / `freetier.dll`）放入 CPA 插件目录，并在 `config.yaml` 中启用：
+从 [Releases](https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/releases) 下载对应平台的归档包，解压后将动态库（`zhenghefreellm.so` / `zhenghefreellm.dll`）放入 CPA 插件目录，并在 `config.yaml` 中启用：
 
 ```yaml
 plugins:
   enabled: true
   dir: "/path/to/cpa/plugins"
   configs:
-    freetier:
+    zhenghefreellm:
       enabled: true
       enabled_realms: "cn,global"
 ```
+
+> 升级自 `freetier` 版本时：把 `plugins.configs.freetier` 整段改名为 `plugins.configs.zhenghefreellm`，并移除旧的 `freetier` 动态库。账号与状态目录不需要迁移。
 
 ### 方式三：源码编译
 
 需 Go 1.22+ 与 C 编译器（启用 `CGO_ENABLED=1`），或直接使用仓库内置的 Docker 构建脚本（基于 `golang:1.24` Debian glibc 镜像）：
 
 ```bash
-git clone https://github.com/cxy2730/CLIProxyAPI-freetier2api-plugin.git
-cd CLIProxyAPI-freetier2api-plugin
+git clone https://github.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin.git
+cd CLIProxyAPI-zhenghefreellm2api-plugin
 ./scripts/build.sh
 ```
 
-编译产物输出至 `dist/freetier.<so|dylib|dll>`。
+编译产物输出至 `dist/zhenghefreellm.<so|dylib|dll>`。
 
 ## 使用方法
 
@@ -86,7 +92,7 @@ cd CLIProxyAPI-freetier2api-plugin
 启动 CLIProxyAPI 后，访问内嵌控制台页面：
 
 ```text
-http://<CPA地址>:8317/v0/resource/plugins/freetier/console
+http://<CPA地址>:8317/v0/resource/plugins/zhenghefreellm/console
 ```
 
 - 点击 **「添加账号 ▾」** 选择对应供应商，按提示在浏览器完成 OAuth 授权或填入 API Key（账号数量不设上限）。
@@ -123,7 +129,7 @@ curl http://localhost:8317/v1/messages \
 
 ## 配置说明
 
-在宿主 `config.yaml` 的 `plugins.configs.freetier` 下可配置以下常用项（大多数运行期设置可直接在控制台页面调整并即时生效）：
+在宿主 `config.yaml` 的 `plugins.configs.zhenghefreellm` 下可配置以下常用项（大多数运行期设置可直接在控制台页面调整并即时生效）：
 
 | 配置键 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |

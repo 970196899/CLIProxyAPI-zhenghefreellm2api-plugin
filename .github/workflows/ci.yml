@@ -113,7 +113,7 @@ jobs:
           mkdir -p dist
           go build -buildmode=c-shared -trimpath \
             -ldflags "-s -w -X main.pluginVersion=${VERSION}" \
-            -o "dist/freetier-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.ext }}" .
+            -o "dist/zhenghefreellm-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.ext }}" .
           ls -la dist
 
       # 插件商店安装要求归档名 {id}_{version}_{goos}_{goarch}.zip，
@@ -127,8 +127,8 @@ jobs:
           set -euo pipefail
           # 归档名里的版本号是 tag 去掉前导 v（宿主按同样规则从 tag 推导）。
           go run ./scripts/packstore \
-            -lib "dist/freetier-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.ext }}" \
-            -id freetier \
+            -lib "dist/zhenghefreellm-${{ matrix.goos }}-${{ matrix.goarch }}.${{ matrix.ext }}" \
+            -id zhenghefreellm \
             -version "${VERSION_TAG#v}" \
             -goos ${{ matrix.goos }} \
             -goarch ${{ matrix.goarch }} \
@@ -139,8 +139,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: startsWith(github.ref, 'refs/tags/v')
         with:
-          name: freetier-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/freetier_*_${{ matrix.goos }}_${{ matrix.goarch }}.zip
+          name: zhenghefreellm-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/zhenghefreellm_*_${{ matrix.goos }}_${{ matrix.goarch }}.zip
           if-no-files-found: error
 
   release:
@@ -178,7 +178,7 @@ jobs:
           version="${TAG#v}"
           missing=0
           for goos in linux_amd64 linux_arm64 windows_amd64; do
-            archive="assets/freetier_${version}_${goos}.zip"
+            archive="assets/zhenghefreellm_${version}_${goos}.zip"
             if [ ! -f "$archive" ]; then
               echo "::error::缺少必选产物 $archive"
               missing=1
@@ -214,20 +214,21 @@ jobs:
             echo "::warning::${TAG} 不是注解标签，本版要点只会有 commit 标题"
           fi
           {
-            echo '## 手动安装（当前推荐）'
+            echo '## 安装方式'
             echo
-            echo '插件商店里的 `freetier` 条目仍指向已失效的原仓库，一键安装会失败；'
-            echo '在插件源更新之前，请按下面的方式手动安装。'
+            echo '**方式一：插件商店（推荐）** 在 CPA 的插件源里加入本仓库的 `registry.json`：'
+            echo '`https://raw.githubusercontent.com/970196899/CLIProxyAPI-zhenghefreellm2api-plugin/main/registry.json`，'
+            echo '即可直接搜索到 `Zhenghe FreeLLM 2API` 并一键安装。'
             echo
-            echo '下载对应平台的 `freetier_<版本>_<goos>_<goarch>.zip`，解压后把其中的'
-            echo '`freetier` 动态库放进 CPA 的 `plugins/` 目录。'
-            echo '归档里已经用的是宿主要求的 `freetier{ext}` 文件名，解压后无需改名。'
+            echo '**方式二：手动解压** 下载对应平台的归档，解压后把其中的 `zhenghefreellm`'
+            echo '动态库放进 CPA 的 `plugins/` 目录。归档里已经用的是宿主要求的'
+            echo '`zhenghefreellm{ext}` 文件名，解压后无需改名。'
             echo
             echo '| 平台 | 下载归档 |'
             echo '| --- | --- |'
-            echo '| Linux x86_64 | `freetier_<版本>_linux_amd64.zip` |'
-            echo '| Linux arm64 | `freetier_<版本>_linux_arm64.zip` |'
-            echo '| Windows x64 | `freetier_<版本>_windows_amd64.zip` |'
+            echo '| Linux x86_64 | `zhenghefreellm_<版本>_linux_amd64.zip` |'
+            echo '| Linux arm64 | `zhenghefreellm_<版本>_linux_arm64.zip` |'
+            echo '| Windows x64 | `zhenghefreellm_<版本>_windows_amd64.zip` |'
             echo
             echo '`checksums.txt` 可用于核对归档完整性；配置与账号导入见仓库 README。'
             echo

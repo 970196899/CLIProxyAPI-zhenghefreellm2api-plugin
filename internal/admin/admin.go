@@ -117,7 +117,7 @@ func (s *Service) Registration() pluginapi.ManagementRegistrationResponse {
 		Resources: []pluginapi.ResourceRoute{{
 			Path:        "/console",
 			Menu:        id.DisplayName,
-			Description: "FreeTier 账号、额度与模型管理页。",
+			Description: "Zhenghe FreeLLM 2API 账号、额度与模型管理页。",
 		}},
 	}
 }
