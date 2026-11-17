@@ -46,7 +46,9 @@ If this project helps you, a Star would mean a lot.
 
 ## Quick Start
 
-> **Read this first if you are upgrading from the `freetier` version**: delete the old `freetier.so` / `freetier.dll` from your CPA `plugins/` directory before installing the new build. Both libraries declare the same credential provider and use the same state directory (that is exactly why your accounts need no migration), so they **must not coexist** — running both makes two plugin instances write the same `state.json` and run the check-in tasks twice. Remove first, then install.
+> **Read this first if you are upgrading from the `freetier` version**: delete the old `freetier.so` / `freetier.dll` from your CPA `plugins/` directory before installing the new build.
+>
+> The host scans the plugins directory and loads **every** shared library it finds — `plugins.configs.<id>.enabled: false` only keeps a plugin inactive, it does **not** stop it from being loaded. Both libraries declare the same credential provider and use the same state directory (that is exactly why your accounts need no migration), so they **must not coexist** — running both makes two plugin instances write the same `state.json` and run the check-in tasks twice. Remove first, then install.
 
 ### Option 1: Install via CPA Plugin Store
 
