@@ -177,3 +177,39 @@ func TestAuthParsePutsRefreshTokenInMetadata(t *testing.T) {
 		t.Fatal("attributes must not leak access_token")
 	}
 }
+
+// TestRegisterWithHostEnabledOnly 锁住「插件配置里只留宿主自己的启用开关」这个约定：
+// 宿主只会往配置块里塞 enabled / priority，插件不声明任何配置字段也必须能起来。
+func TestRegisterWithHostEnabledOnly(t *testing.T) {
+	installFakeHost(t)
+	t.Setenv("FREETIER2API_PLUGIN_HOME", t.TempDir())
+
+	instance, errNew := app.New(app.Options{Version: "test", Factories: app.BuiltinFactories()})
+	if errNew != nil {
+		t.Fatalf("new app: %v", errNew)
+	}
+	testApp = instance
+	t.Cleanup(func() {
+		instance.StopBackgroundWork()
+		instance.WaitPluginStreams(0)
+		testApp = nil
+	})
+
+	result := callMethod(t, pluginabi.MethodPluginRegister, app.LifecycleRequest{
+		ConfigYAML:    []byte("enabled: true\npriority: 1\n"),
+		SchemaVersion: pluginabi.SchemaVersion,
+	})
+	var reg app.RegistrationInfo
+	if errUnmarshal := json.Unmarshal(result, &reg); errUnmarshal != nil {
+		t.Fatalf("decode registration: %v", errUnmarshal)
+	}
+	if reg.SchemaVersion != pluginabi.SchemaVersion {
+		t.Fatalf("schema_version = %d, want %d", reg.SchemaVersion, pluginabi.SchemaVersion)
+	}
+	if reg.Metadata.Version == "" {
+		t.Fatal("metadata.version must not be empty")
+	}
+	if len(reg.Metadata.ConfigFields) != 0 {
+		t.Fatalf("config_fields must stay empty, got %d", len(reg.Metadata.ConfigFields))
+	}
+}
