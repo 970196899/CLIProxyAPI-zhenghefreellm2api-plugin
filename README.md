@@ -12,6 +12,10 @@
 
 > **本仓库说明**：上游 `jiandanc/CLIProxyAPI-freetier2api-plugin` 已随作者账号一并从 GitHub 消失（账号与仓库均为 404）。本仓库自 **v0.1.29** 起由 `cxy2730` 接手维护，插件 ID 仍为 `freetier`，已有安装可直接覆盖升级。仓库已从 fork 网络脱离，是独立仓库；完整提交历史保留，`v0.1.44` 及更早的 tag 只存在于归档仓库 `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`，本仓库从 `v0.1.45` 起继续发版。
 
+## 兼容性说明（x86-64）
+
+实测发现：**v0.1.60–v0.1.65** 的 linux/amd64 构建在无 AVX/AVX2 的旧 x86-64 CPU（如 Intel J4125，Goldmont Plus）上无法加载——宿主 pluginhost preflight probe 报 `SIGILL: illegal instruction`；而 **v0.1.59**（go1.26.10 构建）在同一平台正常加载并运行。详细实测矩阵与分析见报告 PR 描述。宿主 CPU 无 AVX 时暂请停留在 v0.1.59。
+
 ## 功能特性
 
 - 复用宿主 Anthropic `/v1/messages`、OpenAI `/v1/chat/completions` 与 OpenAI `/v1/responses` 接口，无需额外部署独立网关
