@@ -106,26 +106,6 @@ func TestConfigureBaseURLPerInstance(t *testing.T) {
 	}
 }
 
-// TestConfigFieldsHaveNoDuplicates 锁住宿主配置表单不出现同名重复项。
-//
-// 宿主对 ConfigFields 只做 append 不去重（internal/app/main.go 的
-// configFields）：两个实例报同一个键名就会看到两条同名输入框。
-func TestConfigFieldsHaveNoDuplicates(t *testing.T) {
-	cn, global := newTestInstances()
-	seen := map[string]bool{}
-	for _, vendor := range []*adapter{cn, global} {
-		for _, field := range vendor.ConfigFields() {
-			if seen[field.Name] {
-				t.Fatalf("配置键 %q 被重复上报", field.Name)
-			}
-			seen[field.Name] = true
-		}
-	}
-	if !seen[configKeyBaseURLCN] || !seen[configKeyBaseURLGlobal] || !seen[configKeyClaimMinInterval] {
-		t.Fatalf("配置字段缺失：%#v", seen)
-	}
-}
-
 func newTestInstances() (cn, global *adapter) {
 	instances := Instances(core.Env{})
 	return instances[0].(*adapter), instances[1].(*adapter)

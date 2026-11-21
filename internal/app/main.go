@@ -230,7 +230,6 @@ func (a *App) Registration() registration {
 			Version:          a.version,
 			Author:           pluginAuthor,
 			GitHubRepository: pluginRepository,
-			ConfigFields:     a.configFields(),
 		},
 		Capabilities: registrationCapabilities{
 			ResponseBeforeTranslator: true,
@@ -250,24 +249,6 @@ func (a *App) Registration() registration {
 			ExecutorOutputFormats: []string{formatChatCompletions},
 		},
 	}
-}
-
-// configFields 汇总全局字段与供应商自描述字段。
-func (a *App) configFields() []pluginapi.ConfigField {
-	fields := []pluginapi.ConfigField{
-		{Name: "enabled_realms", Type: pluginapi.ConfigFieldTypeString, Description: "启用的域（逗号分隔）：cn 国内 / global 国际。默认 cn,global。"},
-		{Name: "extra_models", Type: pluginapi.ConfigFieldTypeString, Description: "额外注册的模型名（不含前缀），逗号分隔。"},
-		{Name: "disabled_models", Type: pluginapi.ConfigFieldTypeString, Description: "禁用的模型列表。"},
-		{Name: "state_dir", Type: pluginapi.ConfigFieldTypeString, Description: "插件状态目录。"},
-		{Name: "auto_checkin", Type: pluginapi.ConfigFieldTypeBoolean, Description: "是否每日自动签到。"},
-		{Name: "auto_tasks", Type: pluginapi.ConfigFieldTypeBoolean, Description: "是否每日自动跑任务闭环。"},
-	}
-	for _, vendor := range a.registry.Vendors() {
-		if provider, ok := core.As[core.ConfigFieldsProvider](vendor); ok {
-			fields = append(fields, provider.ConfigFields()...)
-		}
-	}
-	return fields
 }
 
 func decodeRequest(raw []byte, target any) error {

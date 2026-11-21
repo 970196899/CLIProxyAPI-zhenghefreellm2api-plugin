@@ -300,15 +300,6 @@ func (v *adapter) settingsSnapshot() map[string]string {
 	return nil
 }
 
-// ConfigFields 声明 Qoder 专属 YAML 配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{
-		{Name: "qoder_machine_token", Type: pluginapi.ConfigFieldTypeString, Description: "官方组件签发的 machineToken，用于解锁国际版每日领取活动。"},
-		{Name: "qoder_machine_type", Type: pluginapi.ConfigFieldTypeString, Description: "与 qoder_machine_token 配对的 machineType，必须成对填写。"},
-		{Name: "qoder_machine_code", Type: pluginapi.ConfigFieldTypeString, Description: "可选的 machineCode（不填不影响活动可见性）。"},
-	}
-}
-
 // ---- 登录与续期 ----
 
 // LoginStart 发起一次 PKCE 设备授权登录。
@@ -562,15 +553,14 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.CheckinProvider      = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.CreditsProvider      = (*adapter)(nil)
-	_ core.LoginProvider        = (*adapter)(nil)
-	_ core.LoginSessionOwner    = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.StorageMerger        = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor            = (*adapter)(nil)
+	_ core.CheckinProvider   = (*adapter)(nil)
+	_ core.Configurable      = (*adapter)(nil)
+	_ core.CreditsProvider   = (*adapter)(nil)
+	_ core.LoginProvider     = (*adapter)(nil)
+	_ core.LoginSessionOwner = (*adapter)(nil)
+	_ core.ModelsProvider    = (*adapter)(nil)
+	_ core.QuotaProvider     = (*adapter)(nil)
+	_ core.StorageMerger     = (*adapter)(nil)
+	_ core.TaskRunner        = (*adapter)(nil)
 )

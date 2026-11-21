@@ -262,23 +262,6 @@ func (v *adapter) LoginPoll(ctx context.Context, state string) (*pluginapi.AuthL
 	return LoginPoll(ctx, v.Env.Logins, state)
 }
 
-// ConfigFields 声明 zcode 专属配置。
-//
-// 领取节流是族级语义（两个实例读同一个键），只由一个实例上报，否则宿主
-// 配置表单会出现同名重复项。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	fields := []pluginapi.ConfigField{
-		{Name: v.baseURLKey(), Type: pluginapi.ConfigFieldTypeString, Description: "上游基地址覆盖（仅对话通道，OAuth 固定直连 zcode.z.ai）。"},
-	}
-	if v.vendorID == VendorIDGlobal {
-		fields = append(fields, pluginapi.ConfigField{
-			Name: configKeyClaimMinInterval, Type: pluginapi.ConfigFieldTypeString,
-			Description: "两次套餐领取之间的最小间隔（Go 时长，如 15s；0 表示不节流）。",
-		})
-	}
-	return fields
-}
-
 // AutoTaskCodeActivity 是一键任务里「活动资格」那一行的任务码。
 const AutoTaskCodeActivity = "(活动资格)"
 
@@ -335,15 +318,14 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.AuthModeReporter     = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.LoginProvider        = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.Refresher            = (*adapter)(nil)
-	_ core.ActivityProbe        = (*adapter)(nil)
-	_ core.PlanClaimer          = (*adapter)(nil)
-	_ core.LegacyIDReporter     = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor           = (*adapter)(nil)
+	_ core.AuthModeReporter = (*adapter)(nil)
+	_ core.Configurable     = (*adapter)(nil)
+	_ core.LoginProvider    = (*adapter)(nil)
+	_ core.QuotaProvider    = (*adapter)(nil)
+	_ core.Refresher        = (*adapter)(nil)
+	_ core.ActivityProbe    = (*adapter)(nil)
+	_ core.PlanClaimer      = (*adapter)(nil)
+	_ core.LegacyIDReporter = (*adapter)(nil)
+	_ core.TaskRunner       = (*adapter)(nil)
 )

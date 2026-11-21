@@ -261,17 +261,11 @@ func (v *adapter) probeAPIKey() string {
 	return native.APIKey
 }
 
-// ConfigFields 声明 opencodezen 专属配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{{Name: "opencodezen_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "上游基地址覆盖。"}}
-}
-
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.AuthModeReporter     = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.CreditsProvider      = (*adapter)(nil)
+	_ core.Vendor           = (*adapter)(nil)
+	_ core.AuthModeReporter = (*adapter)(nil)
+	_ core.Configurable     = (*adapter)(nil)
+	_ core.ModelsProvider   = (*adapter)(nil)
+	_ core.CreditsProvider  = (*adapter)(nil)
 )

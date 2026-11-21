@@ -43,13 +43,6 @@ func (v *adapter) Configure(_ core.Settings, raw map[string]string) {
 	v.creditEnabled.Store(err == nil && enabled)
 }
 
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{{
-		Name: creditEnabledKey, Type: pluginapi.ConfigFieldTypeBoolean,
-		Description: "CodeArts 积分推理通道，默认关闭。开启后按账号积分计费；不会从免费福利通道自动切换。修改后请刷新模型目录。",
-	}}
-}
-
 // fetchModels 与执行使用同一个显式通道设置。积分通道只展示真实内置目录，
 // 不混入福利专用模型，也不在目录查询失败时猜测可计费的模型。
 func (v *adapter) fetchModels(ctx context.Context, cred *Credential) ([]Model, error) {
@@ -448,14 +441,13 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.CallbackSubmitter    = (*adapter)(nil)
-	_ core.CheckinProvider      = (*adapter)(nil)
-	_ core.LoginProvider        = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.CreditsProvider      = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor            = (*adapter)(nil)
+	_ core.CallbackSubmitter = (*adapter)(nil)
+	_ core.CheckinProvider   = (*adapter)(nil)
+	_ core.LoginProvider     = (*adapter)(nil)
+	_ core.ModelsProvider    = (*adapter)(nil)
+	_ core.QuotaProvider     = (*adapter)(nil)
+	_ core.CreditsProvider   = (*adapter)(nil)
+	_ core.Configurable      = (*adapter)(nil)
+	_ core.TaskRunner        = (*adapter)(nil)
 )

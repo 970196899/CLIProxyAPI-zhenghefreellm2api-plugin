@@ -614,13 +614,6 @@ func (r *runtime) options(ctx context.Context) Options {
 	}
 }
 
-// ConfigFields 声明 WorkBuddy 专属 YAML 配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{
-		{Name: "workbuddy_passthrough_ip", Type: pluginapi.ConfigFieldTypeBoolean, Description: "是否透传客户端 IP，默认关闭。"},
-	}
-}
-
 func ParseBool(raw string, fallback bool) bool {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "1", "true", "yes", "on":
@@ -776,7 +769,6 @@ var (
 	_ core.Vendor               = (*adapter)(nil)
 	_ core.CheckinProvider      = (*adapter)(nil)
 	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
 	_ core.ConsoleModelProvider = (*adapter)(nil)
 	_ core.CreditsProvider      = (*adapter)(nil)
 	_ core.LoginProvider        = (*adapter)(nil)

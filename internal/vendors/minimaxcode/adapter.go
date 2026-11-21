@@ -208,14 +208,6 @@ func (v *adapter) LoginPoll(ctx context.Context, state string) (*pluginapi.AuthL
 
 func (v *adapter) SupportsCheckin() bool { return v.region == RegionGlobal }
 
-// ConfigFields 声明 MiniMax Code 专属配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{
-		{Name: "minimaxcode_cn_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "国内版 Agent 域基地址覆盖（Token Plan 窗口查询固定直连开放平台域）。"},
-		{Name: "minimaxcode_global_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "国际版 Agent 域基地址覆盖（Token Plan 窗口查询固定直连开放平台域）。"},
-	}
-}
-
 // RunAllTasks 执行一键任务。minimaxcode 的活动福利只有签到这一条链路
 // （每日签到 + 登录活跃上报都在 Checkin 里），因此一键任务只产出签到那一行。
 func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core.AutoTaskResult {
@@ -240,12 +232,11 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.CheckinProvider      = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.LoginProvider        = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor          = (*adapter)(nil)
+	_ core.CheckinProvider = (*adapter)(nil)
+	_ core.Configurable    = (*adapter)(nil)
+	_ core.LoginProvider   = (*adapter)(nil)
+	_ core.QuotaProvider   = (*adapter)(nil)
+	_ core.ModelsProvider  = (*adapter)(nil)
+	_ core.TaskRunner      = (*adapter)(nil)
 )

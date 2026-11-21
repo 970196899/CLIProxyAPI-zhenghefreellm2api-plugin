@@ -385,11 +385,6 @@ func LoginUnsupported(vendor Vendor) error {
 		vendor.Name()+" 不支持登录：请用「添加 API Key」方式添加", http.StatusNotImplemented)
 }
 
-// ConfigFieldsProvider 由需要声明 YAML 配置字段的供应商实现。
-type ConfigFieldsProvider interface {
-	ConfigFields() []pluginapi.ConfigField
-}
-
 // ── 套餐领取 ────────────────────────────────────────────────────────────────
 //
 // 有些供应商的「领取套餐」需要上游发放的活动套餐，并强制要求人机验证令牌

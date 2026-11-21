@@ -121,3 +121,21 @@ func TestDeclaredCapabilitiesHaveHandlers(t *testing.T) {
 		}
 	}
 }
+
+// TestRegistrationHasNoConfigFields 锁住「宿主插件设置页不再渲染配置表单」的决定。
+//
+// 这些键（enabled_realms / state_dir / 各家 base_url 等）仍然从 config.yaml 读取，
+// 只是不再由插件声明成表单字段——控制台和 YAML 才是配置入口，插件页那份表单没人用。
+func TestRegistrationHasNoConfigFields(t *testing.T) {
+	a, errNew := New(Options{Version: "test"})
+	if errNew != nil {
+		t.Fatalf("new app: %v", errNew)
+	}
+	raw, errMarshal := json.Marshal(a.Registration())
+	if errMarshal != nil {
+		t.Fatalf("marshal registration: %v", errMarshal)
+	}
+	if strings.Contains(string(raw), "config_fields") {
+		t.Fatalf("registration must not declare config fields: %s", raw)
+	}
+}
