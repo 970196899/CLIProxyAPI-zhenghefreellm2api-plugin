@@ -355,10 +355,18 @@ func RefreshVendor(vendor Vendor, ctx context.Context, cred *Credential) (*Crede
 
 // EstimateTokens 按字节数估算 token（偏保守，倾向高估）。
 func EstimateTokens(payload []byte) int {
-	if len(payload) == 0 {
+	return EstimateTokensForSize(len(payload))
+}
+
+// EstimateTokensForSize 与 EstimateTokens 同口径，但只吃长度。
+//
+// 调用方已经把几份载荷的长度加起来了（例如客户端原始请求体 + 翻译后的 payload），
+// 没必要为了估算再把它们复制拼接一遍——长上下文下那次复制与请求体等大。
+func EstimateTokensForSize(size int) int {
+	if size <= 0 {
 		return 0
 	}
-	tokens := len(payload) / 3
+	tokens := size / 3
 	if tokens < 1 {
 		return 1
 	}

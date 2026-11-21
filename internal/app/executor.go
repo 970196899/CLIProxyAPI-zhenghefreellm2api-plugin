@@ -426,7 +426,8 @@ func (a *App) handleExecutorCountTokens(request []byte) ([]byte, error) {
 	if errDecode := decodeRequest(request, &rpc); errDecode != nil {
 		return nil, core.NewPluginError("invalid_request", errDecode.Error(), http.StatusBadRequest)
 	}
-	estimate := core.EstimateTokens(append(append([]byte(nil), rpc.OriginalRequest...), rpc.Payload...))
+	// 只吃长度：把两份载荷拼起来再估算会多一次与请求体等大的复制。
+	estimate := core.EstimateTokensForSize(len(rpc.OriginalRequest) + len(rpc.Payload))
 	payload, errMarshal := json.Marshal(map[string]any{
 		"total_tokens":  estimate,
 		"input_tokens":  estimate,

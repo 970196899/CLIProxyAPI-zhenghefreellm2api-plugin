@@ -14,7 +14,7 @@ func TestRegisterReturnsFullContract(t *testing.T) {
 	installFakeHost(t)
 	cfg := setupTestPlugin(t)
 
-	result := callMethod(t, pluginabi.MethodPluginRegister, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg)})
+	result := callMethod(t, pluginabi.MethodPluginRegister, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg), SchemaVersion: pluginabi.SchemaVersion})
 	var reg app.RegistrationInfo
 	if errUnmarshal := json.Unmarshal(result, &reg); errUnmarshal != nil {
 		t.Fatalf("decode registration: %v", errUnmarshal)
@@ -50,12 +50,12 @@ func TestReconfigureKeepsBackgroundRunning(t *testing.T) {
 	installFakeHost(t)
 	cfg := setupTestPlugin(t)
 
-	callMethod(t, pluginabi.MethodPluginRegister, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg)})
+	callMethod(t, pluginabi.MethodPluginRegister, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg), SchemaVersion: pluginabi.SchemaVersion})
 	if !testApp.BackgroundRunning() {
 		t.Fatal("background work must start on register")
 	}
 
-	result := callMethod(t, pluginabi.MethodPluginReconfigure, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg)})
+	result := callMethod(t, pluginabi.MethodPluginReconfigure, app.LifecycleRequest{ConfigYAML: buildConfigYAML(cfg), SchemaVersion: pluginabi.SchemaVersion})
 	var reg app.RegistrationInfo
 	if errUnmarshal := json.Unmarshal(result, &reg); errUnmarshal != nil {
 		t.Fatalf("decode reconfigure response: %v", errUnmarshal)

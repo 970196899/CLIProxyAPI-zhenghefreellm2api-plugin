@@ -48,6 +48,9 @@ type App struct {
 
 	lifecycleMu sync.Mutex
 	registered  bool
+	// hostSchema 是宿主在注册时声明的契约版本（0＝宿主没送）。
+	// Registration 据此把 schema_version 降级到宿主能接受的范围。
+	hostSchema atomic.Uint32
 
 	credentialMu    sync.Mutex
 	credentialCache map[string]credentialCacheEntry
