@@ -14,7 +14,7 @@
 
 ## 兼容性说明（x86-64）
 
-实测发现：**v0.1.60–v0.1.65** 的 linux/amd64 构建在无 AVX/AVX2 的旧 x86-64 CPU（如 Intel J4125，Goldmont Plus）上无法加载——宿主 pluginhost preflight probe 报 `SIGILL: illegal instruction`；而 **v0.1.59**（go1.26.10 构建）在同一平台正常加载并运行。详细实测矩阵与分析见报告 PR 描述。宿主 CPU 无 AVX 时暂请停留在 v0.1.59。
+实测定位（详见 PR #2）：**v0.1.60–v0.1.65** 的 linux/amd64 构建在无 AVX 的旧 x86-64 CPU（如 Intel J4125，Goldmont Plus）上 dlopen 即 `SIGILL`——gdb 断点定位在 runtime/cgo 的 `x_cgo_sigaction`，gcc 把 152 字节 struct sigaction 清零向量化成了 `vmovdqu %ymm0`（AVX 指令）。根因：`ubuntu-latest` 于 2026-10-19 起迁移到 Ubuntu 26.04（v0.1.59 构建于 11-12 仍正常，v0.1.60 构建于 11-16 开始 SIGILL），新 runner 的 gcc 给 runtime/cgo 的 C 代码默认开了 AVX；而 `CC`/`CGO_CFLAGS` 均无法覆盖 runtime/cgo 的编译参数（Go 固定行为），只能钉 runner（本 PR：linux 钉 `ubuntu-24.04`）或容器化构建。宿主 CPU 无 AVX 时暂请停留在 v0.1.59 或使用自建构建（同源码 + golang:bookworm 容器构建已验证可正常加载 v0.1.65）。
 
 ## 功能特性
 
