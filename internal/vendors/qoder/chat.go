@@ -1572,7 +1572,8 @@ func (b *Bridge) ListAvailableModels(ctx context.Context) ([]Model, error) {
 	if len(models) == 0 {
 		return nil, fmt.Errorf("%s -> empty model list, keys=%v", modelListURL, keys)
 	}
-	return models, nil
+	// 活动模型（HungerG）不在 model/list 里，按 key 补上，见 supplemental.go。
+	return appendSupplemental(models, b.region), nil
 }
 
 func parseModels(resp map[string]interface{}) []Model {
