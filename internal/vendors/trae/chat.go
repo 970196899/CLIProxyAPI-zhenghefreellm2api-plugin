@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -324,12 +325,14 @@ func Chat(ctx context.Context, baseURL string, req ChatRequest) ([]byte, error) 
 		return nil, errDo
 	}
 	defer func() { _ = respBody.Close() }()
+	toolText := newToolText(req.Body, model)
 
 	var (
 		contentSB   strings.Builder
 		reasoningSB strings.Builder
 		usage       map[string]any
 		finish      = "stop"
+		completed   bool
 	)
 
 	scanner := bufio.NewScanner(respBody)
@@ -346,7 +349,11 @@ func Chat(ctx context.Context, baseURL string, req ChatRequest) ([]byte, error) 
 			continue
 		}
 		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-		if data == "" || data == "[DONE]" {
+		if data == "[DONE]" {
+			completed = true
+			break
+		}
+		if data == "" {
 			continue
 		}
 
@@ -357,6 +364,9 @@ func Chat(ctx context.Context, baseURL string, req ChatRequest) ([]byte, error) 
 
 		switch currentEvent {
 		case "output":
+			if calls, _ := payload["tool_calls"].([]any); len(calls) > 0 {
+				toolText = nil
+			}
 			if r, ok := payload["response"].(string); ok {
 				contentSB.WriteString(r)
 			}
@@ -370,6 +380,7 @@ func Chat(ctx context.Context, baseURL string, req ChatRequest) ([]byte, error) 
 			msg, _ := payload["message"].(string)
 			return nil, fmt.Errorf("trae upstream error: code=%.0f msg=%s", code, msg)
 		case "done":
+			completed = true
 			if fr, ok := payload["finish_reason"].(string); ok && fr != "" {
 				finish = fr
 			}
@@ -380,6 +391,13 @@ func Chat(ctx context.Context, baseURL string, req ChatRequest) ([]byte, error) 
 		"role":              "assistant",
 		"content":           contentSB.String(),
 		"reasoning_content": reasoningSB.String(),
+	}
+	if completed && scanner.Err() == nil && finish == "stop" {
+		if _, calls := toolText.recover(contentSB.String()); len(calls) > 0 {
+			message["content"] = nil
+			message["tool_calls"] = openAIToolCalls(calls, false)
+			finish = "tool_calls"
+		}
 	}
 	out := map[string]any{
 		"id":      "chatcmpl-" + core.RandomHex(6),
@@ -408,6 +426,7 @@ func ChatStream(ctx context.Context, baseURL string, req ChatRequest, onChunk St
 		return errDo
 	}
 	defer func() { _ = respBody.Close() }()
+	toolText := newToolText(req.Body, model)
 
 	scanner := bufio.NewScanner(respBody)
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -435,6 +454,27 @@ func ChatStream(ctx context.Context, baseURL string, req ChatRequest, onChunk St
 		}
 		return onChunk(rawChunk)
 	}
+	emitFinish := func(reason string) error {
+		text := ""
+		var calls []textToolCall
+		if reason == "" || reason == "stop" {
+			text, calls = toolText.finish()
+		} else {
+			text = toolText.passthrough()
+		}
+		if len(calls) > 0 {
+			if errEmit := emit(map[string]any{"tool_calls": openAIToolCalls(calls, true)}, nil); errEmit != nil {
+				return errEmit
+			}
+			return emit(map[string]any{}, "tool_calls")
+		}
+		if text != "" {
+			if errEmit := emit(map[string]any{"content": text}, nil); errEmit != nil {
+				return errEmit
+			}
+		}
+		return emit(map[string]any{}, "stop")
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -450,6 +490,9 @@ func ChatStream(ctx context.Context, baseURL string, req ChatRequest, onChunk St
 			continue
 		}
 		if data == "[DONE]" {
+			if toolText != nil {
+				return emitFinish("")
+			}
 			return nil
 		}
 		// 上游流若在 UTF-8 字符中间被截断（连接中断/网络重传损坏），
@@ -473,12 +516,18 @@ func ChatStream(ctx context.Context, baseURL string, req ChatRequest, onChunk St
 			// 客户端（如 DSH）在字段分离时正文被埋、字段切换渲染错乱。
 			// 统一并入 content，保持上游顺序（思考在前、正文在后）。
 			delta := map[string]any{}
-			var content string
-			if reasoning != "" {
-				content += reasoning
-			}
-			if resp != "" {
-				content += resp
+			content := reasoning + resp
+			if toolText != nil {
+				if calls, _ := payload["tool_calls"].([]any); len(calls) > 0 {
+					content = toolText.passthrough() + content
+					toolText = nil
+				} else {
+					// Do not mix thought text into a candidate from response.
+					content = toolText.push(resp)
+					if reasoning != "" {
+						delta["reasoning_content"] = reasoning
+					}
+				}
 			}
 			if content != "" {
 				delta["content"] = content
@@ -510,11 +559,19 @@ func ChatStream(ctx context.Context, baseURL string, req ChatRequest, onChunk St
 			msg, _ := payload["message"].(string)
 			return fmt.Errorf("trae stream error: code=%.0f msg=%s", code, msg)
 		case "done":
-			return emit(map[string]any{}, "stop")
+			reason, _ := payload["finish_reason"].(string)
+			return emitFinish(reason)
 		}
 	}
 
-	return scanner.Err()
+	if errScan := scanner.Err(); errScan != nil {
+		return errScan
+	}
+	// No terminal event: forward buffered text, but don't execute a partial call.
+	if text := toolText.passthrough(); text != "" {
+		return emit(map[string]any{"content": text}, nil)
+	}
+	return nil
 }
 
 // mapUsage 把上游 token_usage 事件映射成 OpenAI usage 结构。
@@ -596,4 +653,240 @@ func newUUID() string {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+const maxToolTextBytes = 64 * 1024
+
+type textToolCall struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// Trae DeepSeek may return an invocation as assistant text. Recover only a
+// complete response for a tool offered by the client, never surrounding prose.
+type toolText struct {
+	names   map[string]string
+	pending string
+	direct  bool
+}
+
+func newToolText(body []byte, model string) *toolText {
+	if !strings.Contains(strings.ToLower(model), "deepseek") {
+		return nil
+	}
+	type functionSpec struct {
+		Name       string `json:"name"`
+		Parameters struct {
+			Properties map[string]struct {
+				Type string `json:"type"`
+			} `json:"properties"`
+		} `json:"parameters"`
+	}
+	type toolSpec struct {
+		Type string `json:"type"`
+		functionSpec
+		Function functionSpec `json:"function"`
+	}
+	var req struct {
+		Tools          []toolSpec      `json:"tools"`
+		Choice         json.RawMessage `json:"tool_choice"`
+		ResponseFormat struct {
+			Type string `json:"type"`
+		} `json:"response_format"`
+	}
+	if json.Unmarshal(body, &req) != nil || (req.ResponseFormat.Type != "" && req.ResponseFormat.Type != "text") {
+		return nil
+	}
+	var forced string
+	switch string(req.Choice) {
+	case "", "null", "\"auto\"", "\"required\"":
+	default:
+		var choice toolSpec
+		if json.Unmarshal(req.Choice, &choice) != nil || choice.Type != "function" {
+			return nil
+		}
+		forced = core.FirstNonEmpty(choice.Function.Name, choice.Name)
+		if forced == "" {
+			return nil
+		}
+	}
+	names := map[string]string{}
+	for _, tool := range req.Tools {
+		fn := tool.functionSpec
+		if tool.Function.Name != "" {
+			fn = tool.Function
+		}
+		if (tool.Type != "" && tool.Type != "function") || fn.Name == "" || (forced != "" && forced != fn.Name) {
+			continue
+		}
+		names[fn.Name] = ""
+		if len(fn.Parameters.Properties) == 1 {
+			for name, property := range fn.Parameters.Properties {
+				if property.Type == "string" {
+					names[fn.Name] = name
+				}
+			}
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return &toolText{names: names}
+}
+
+func (p *toolText) push(text string) string {
+	if p == nil || p.direct {
+		return text
+	}
+	p.pending += text
+	trimmed := strings.TrimSpace(p.pending)
+	if len(p.pending) <= maxToolTextBytes && (trimmed == "" || strings.HasPrefix(trimmed, "{") ||
+		strings.HasPrefix(trimmed, "<｜") || strings.HasPrefix(trimmed, "<|") || trimmed == "<" ||
+		strings.HasPrefix(trimmed, "```") || strings.HasPrefix("```", trimmed) || p.possiblePositionalCall(trimmed)) {
+		return ""
+	}
+	return p.passthrough()
+}
+
+func (p *toolText) possiblePositionalCall(text string) bool {
+	for name, parameter := range p.names {
+		if parameter != "" && (strings.HasPrefix(text, name+"(") || strings.HasPrefix(name+"(", text)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *toolText) passthrough() string {
+	if p == nil {
+		return ""
+	}
+	text := p.pending
+	p.pending, p.direct = "", true
+	return text
+}
+
+func (p *toolText) finish() (string, []textToolCall) {
+	if p == nil {
+		return "", nil
+	}
+	return p.recover(p.passthrough())
+}
+
+func (p *toolText) recover(text string) (string, []textToolCall) {
+	if p == nil || len(text) > maxToolTextBytes {
+		return text, nil
+	}
+	trimmed := strings.TrimSpace(text)
+	if strings.HasPrefix(trimmed, "<") {
+		calls := decodeDSML(trimmed)
+		for _, call := range calls {
+			if _, ok := p.names[call.Name]; !ok {
+				return text, nil
+			}
+		}
+		if len(calls) > 0 {
+			return "", calls
+		}
+		return text, nil
+	}
+	if body, ok := strings.CutPrefix(trimmed, "```json\n"); ok {
+		if body, ok := strings.CutSuffix(body, "\n```"); ok {
+			trimmed = strings.TrimSpace(body)
+		}
+	}
+	var call textToolCall
+	dec := json.NewDecoder(strings.NewReader(trimmed))
+	dec.DisallowUnknownFields()
+	if json.Valid([]byte(trimmed)) && dec.Decode(&call) == nil {
+		if _, ok := p.names[call.Name]; ok && normalizeArguments(&call) {
+			return "", []textToolCall{call}
+		}
+	}
+	if name, rest, ok := strings.Cut(trimmed, "("); ok && p.names[name] != "" {
+		if arg, closed := strings.CutSuffix(rest, ")"); closed && strings.HasPrefix(strings.TrimSpace(arg), "\"") {
+			var value string
+			if json.Unmarshal([]byte(arg), &value) == nil {
+				args, _ := json.Marshal(map[string]string{p.names[name]: value})
+				return "", []textToolCall{{Name: name, Arguments: args}}
+			}
+		}
+	}
+	return text, nil
+}
+
+func normalizeArguments(call *textToolCall) bool {
+	raw := bytes.TrimSpace(call.Arguments)
+	if len(raw) > 0 && raw[0] == '"' {
+		var encoded string
+		if json.Unmarshal(raw, &encoded) != nil {
+			return false
+		}
+		raw = bytes.TrimSpace([]byte(encoded))
+	}
+	if len(raw) == 0 || raw[0] != '{' || !json.Valid(raw) {
+		return false
+	}
+	call.Arguments = raw
+	return true
+}
+
+const dsmlToken = `[｜|]{1,2}DSML[｜|]{1,2}\s*`
+
+var (
+	dsmlBlock  = regexp.MustCompile(`(?s)^<` + dsmlToken + `(function_calls|tool_calls|calls)>(.*)</` + dsmlToken + `(function_calls|tool_calls|calls)>$`)
+	dsmlInvoke = regexp.MustCompile(`(?s)^<` + dsmlToken + `invoke\s+name="([^"]+)">(.*?)</` + dsmlToken + `invoke>`)
+	dsmlParam  = regexp.MustCompile(`(?s)^<` + dsmlToken + `parameter\s+name="([^"]+)"\s+string="(true|false)">(.*?)</` + dsmlToken + `parameter>`)
+)
+
+func decodeDSML(text string) []textToolCall {
+	block := dsmlBlock.FindStringSubmatch(text)
+	if block == nil || block[1] != block[3] {
+		return nil
+	}
+	var calls []textToolCall
+	for text = strings.TrimSpace(block[2]); text != ""; {
+		invoke := dsmlInvoke.FindStringSubmatch(text)
+		if invoke == nil {
+			return nil
+		}
+		args := map[string]json.RawMessage{}
+		for params := strings.TrimSpace(invoke[2]); params != ""; {
+			param := dsmlParam.FindStringSubmatch(params)
+			if param == nil || args[param[1]] != nil {
+				return nil
+			}
+			value := json.RawMessage(strings.TrimSpace(param[3]))
+			if param[2] == "true" {
+				value, _ = json.Marshal(param[3])
+			}
+			if !json.Valid(value) {
+				return nil
+			}
+			args[param[1]] = value
+			params = strings.TrimSpace(params[len(param[0]):])
+		}
+		raw, err := json.Marshal(args)
+		if err != nil {
+			return nil
+		}
+		calls = append(calls, textToolCall{Name: invoke[1], Arguments: raw})
+		text = strings.TrimSpace(text[len(invoke[0]):])
+	}
+	return calls
+}
+
+func openAIToolCalls(calls []textToolCall, stream bool) []map[string]any {
+	out := make([]map[string]any, 0, len(calls))
+	for i, call := range calls {
+		item := map[string]any{
+			"id": "call_" + core.RandomHex(12), "type": "function",
+			"function": map[string]string{"name": call.Name, "arguments": string(call.Arguments)},
+		}
+		if stream {
+			item["index"] = i
+		}
+		out = append(out, item)
+	}
+	return out
 }
