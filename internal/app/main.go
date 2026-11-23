@@ -139,6 +139,7 @@ func (a *App) handlePluginRegister(request []byte) ([]byte, error) {
 	if _, errState := a.loadState(cfg); errState != nil {
 		logger.Error("加载状态失败：%v", errState)
 	}
+	a.noteHostSchema(hostSchemaFrom(request))
 	a.applyModelCatalog(cfg)
 	if !a.registered {
 		a.registered = true
@@ -156,6 +157,7 @@ func (a *App) handlePluginReconfigure(request []byte) ([]byte, error) {
 	if errConfig != nil {
 		return nil, fmt.Errorf("plugin.reconfigure: %w", errConfig)
 	}
+	a.noteHostSchema(hostSchemaFrom(request))
 	previous := a.Config()
 	if errApply := a.ApplyConfig(cfg); errApply != nil {
 		return nil, fmt.Errorf("plugin.reconfigure: %w", errApply)
@@ -168,6 +170,44 @@ func (a *App) handlePluginReconfigure(request []byte) ([]byte, error) {
 	a.applyModelCatalog(cfg)
 	logger.Info("已重新配置：区域=%v 状态目录=%s", cfg.EnabledRealms, cfg.StateDir)
 	return core.OKEnvelope(a.Registration())
+}
+
+// hostSchemaFrom 读取宿主在注册/重配置请求里声明的契约版本。
+//
+// 宿主字段缺失（很老的版本）时返回 0，由协商函数按最低契约处理。
+func hostSchemaFrom(raw []byte) uint32 {
+	if len(raw) == 0 {
+		return 0
+	}
+	var req lifecycleRequest
+	if errUnmarshal := json.Unmarshal(raw, &req); errUnmarshal != nil {
+		return 0
+	}
+	return req.SchemaVersion
+}
+
+// noteHostSchema 记录宿主声明的契约版本，供 Registration 协商。
+//
+// 宿主只在 plugin.register / plugin.reconfigure 里送这个字段；重配置时重记一次，
+// 免得热重载后回落到默认值。
+func (a *App) noteHostSchema(host uint32) {
+	a.hostSchema.Store(host)
+}
+
+// negotiatedSchemaVersion 把本插件支持的契约版本压到宿主能接受的范围内。
+//
+// 宿主侧的校验是「插件声明的版本 > 宿主版本就拒绝加载」，所以插件不能无条件
+// 报最新版本：CPA 8.0.0 的契约是 6，8.1.0 是 10，跨版本分发同一份插件时必须
+// 按宿主降级，否则老宿主直接判定「schema version not supported」。
+func negotiatedSchemaVersion(host uint32) uint32 {
+	if host == 0 {
+		// 字段缺失＝最老的宿主，只认最初的契约。
+		return 1
+	}
+	if host > pluginabi.SchemaVersion {
+		return pluginabi.SchemaVersion
+	}
+	return host
 }
 
 func configYAMLFrom(raw []byte) []byte {
@@ -184,13 +224,12 @@ func configYAMLFrom(raw []byte) []byte {
 // Registration 构造注册响应。
 func (a *App) Registration() registration {
 	return registration{
-		SchemaVersion: pluginabi.SchemaVersion,
+		SchemaVersion: negotiatedSchemaVersion(a.hostSchema.Load()),
 		Metadata: pluginapi.Metadata{
 			Name:             pluginDisplayName,
 			Version:          a.version,
 			Author:           pluginAuthor,
 			GitHubRepository: pluginRepository,
-			ConfigFields:     a.configFields(),
 		},
 		Capabilities: registrationCapabilities{
 			ResponseBeforeTranslator: true,
@@ -210,24 +249,6 @@ func (a *App) Registration() registration {
 			ExecutorOutputFormats: []string{formatChatCompletions},
 		},
 	}
-}
-
-// configFields 汇总全局字段与供应商自描述字段。
-func (a *App) configFields() []pluginapi.ConfigField {
-	fields := []pluginapi.ConfigField{
-		{Name: "enabled_realms", Type: pluginapi.ConfigFieldTypeString, Description: "启用的域（逗号分隔）：cn 国内 / global 国际。默认 cn,global。"},
-		{Name: "extra_models", Type: pluginapi.ConfigFieldTypeString, Description: "额外注册的模型名（不含前缀），逗号分隔。"},
-		{Name: "disabled_models", Type: pluginapi.ConfigFieldTypeString, Description: "禁用的模型列表。"},
-		{Name: "state_dir", Type: pluginapi.ConfigFieldTypeString, Description: "插件状态目录。"},
-		{Name: "auto_checkin", Type: pluginapi.ConfigFieldTypeBoolean, Description: "是否每日自动签到。"},
-		{Name: "auto_tasks", Type: pluginapi.ConfigFieldTypeBoolean, Description: "是否每日自动跑任务闭环。"},
-	}
-	for _, vendor := range a.registry.Vendors() {
-		if provider, ok := core.As[core.ConfigFieldsProvider](vendor); ok {
-			fields = append(fields, provider.ConfigFields()...)
-		}
-	}
-	return fields
 }
 
 func decodeRequest(raw []byte, target any) error {

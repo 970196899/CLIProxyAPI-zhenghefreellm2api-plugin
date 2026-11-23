@@ -120,13 +120,6 @@ func (v *adapter) Configure(_ core.Settings, raw map[string]string) {
 	v.baseURL = strings.TrimSpace(raw[v.ID()+"_base_url"])
 }
 
-// ConfigFields 声明 AutoClaw 专属配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{
-		{Name: v.ID() + "_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "AutoClaw 上游基地址覆盖（默认 " + DefaultBaseURLFor(v.region) + "）。"},
-	}
-}
-
 // AuthMode 报告凭证形态（页面据此展示「需要重新登录」类语义）。
 func (v *adapter) AuthMode() string { return "oauth" }
 
@@ -359,16 +352,15 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.CheckinProvider      = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.Refresher            = (*adapter)(nil)
-	_ core.StorageMerger        = (*adapter)(nil)
-	_ core.CreditsProvider      = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor          = (*adapter)(nil)
+	_ core.CheckinProvider = (*adapter)(nil)
+	_ core.Configurable    = (*adapter)(nil)
+	_ core.ModelsProvider  = (*adapter)(nil)
+	_ core.QuotaProvider   = (*adapter)(nil)
+	_ core.Refresher       = (*adapter)(nil)
+	_ core.StorageMerger   = (*adapter)(nil)
+	_ core.CreditsProvider = (*adapter)(nil)
+	_ core.TaskRunner      = (*adapter)(nil)
 )
 
 // 编译期断言（登录能力随实例类型分派）。

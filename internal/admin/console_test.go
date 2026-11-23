@@ -174,7 +174,9 @@ globalThis.localStorage = {
   setItem: function (k, v) { store[k] = v; },
 };
 const warnings = [];
-const page = new Function('console', block + ';return {panelAuthKey: panelAuthKey};')({
+// 页面里的告警文案现在走 t() 翻译层；块本身不含 t 的定义，这里给个恒等桩，
+// 保证抽出来的 panelAuthKey 在 node 里行为与线上（中文模式）一致。
+const page = new Function('console', 'const t = function (s) { return s; }; ' + block + ';return {panelAuthKey: panelAuthKey};')({
   warn: function () { warnings.push(Array.prototype.join.call(arguments, ' ')); },
   log: function () {},
 });
@@ -782,7 +784,7 @@ func TestConsoleAccountsTableSupportsBatchSelection(t *testing.T) {
 	page := Page("/plugins/zhenghefreellm")
 
 	for _, literal := range []string{
-		`["", "状态", "供应商", "账号", "签到", "剩余 / 总额", "剩余率", "刷新时间"]`,
+		`["", t("状态"), t("供应商"), t("账号"), t("签到"), t("剩余 / 总额"), t("剩余率"), t("刷新时间")]`,
 		"function accountCheckCell(account)",
 		`id="btnDeleteAccounts"`,
 		`id="btnDisableAccounts"`,
@@ -848,8 +850,8 @@ func TestConsoleAccountAndModelStatusLabels(t *testing.T) {
 	for _, want := range []string{
 		`<button class="act" id="btnDisableAccounts">停用选中</button>`,
 		`<button class="act" id="btnDisableModels">停用选中</button>`,
-		`account.disabled ? pill("停用", "err") : pill("启用", "ok")`,
-		`model.disabled ? pill("停用", "err") : pill("启用", "ok")`,
+		`account.disabled ? pill(language === "en" ? "Disabled" : "停用", "err") : pill(language === "en" ? "Enabled" : "启用", "ok")`,
+		`model.disabled ? pill(language === "en" ? "Disabled" : "停用", "err") : pill(language === "en" ? "Enabled" : "启用", "ok")`,
 		`// 排序：状态 + 供应商名称 + 账号 ID（启用在上，停用在下；同状态内按 供应商名称 + 账号 ID 升序）`,
 	} {
 		if !strings.Contains(page, want) {
@@ -904,7 +906,7 @@ func TestConsoleAutoAllCoversEveryAccount(t *testing.T) {
 	}
 
 	// 被中断时上游 message 优先于逐账号明细，且不能落绿。
-	if !strings.Contains(page, `if (result.cancelled) { banner("warn", "一键任务被中断：`) {
+	if !strings.Contains(page, `if (result.cancelled) { banner("warn", t("一键任务被中断：`) {
 		t.Fatal("cancelled 必须先把上游 message 摆出来，并落 warn")
 	}
 	// 局部变量 head 会遮蔽 document.head，按 #75 复审要求改名。
@@ -949,5 +951,35 @@ func TestPageBytesCached(t *testing.T) {
 	other := PageBytes("/plugins/other")
 	if string(other) == string(first) || !strings.Contains(string(other), "/plugins/other") {
 		t.Fatal("a different base path must render its own page")
+	}
+}
+
+// TestConsoleTranslationsCoverLocalStrings 锁住语言切换控件、空账号提示及
+// 本地新增可见文案的中英文词典映射。
+//
+// 回归背景：合并上游多语言控制台时，10-body.html 冲突若误删 #language 下拉框
+// 会导致 20-core.html 顶层 IIFE 抛 TypeError 瘫痪；20-core.html 词典若保留旧的
+// FreeTier 2API 键名或漏掉本地 WorkBuddy 的「浮动倍率」，英文模式下会回落中文。
+// 注：基础月度套餐 / 活动与签到奖励 / 资源包明细 暂为未来面板渲染预留词条。
+func TestConsoleTranslationsCoverLocalStrings(t *testing.T) {
+	page := Page("/plugins/zhenghefreellm")
+
+	for _, want := range []string{
+		`<h1>Zhenghe FreeLLM 2API</h1>`,
+		`<select id="language"`,
+		`"没有账号。请在 CPA 面板的「添加认证」里选择 Zhenghe FreeLLM 2API，或在控制台页发起登录。": "No accounts. Add a Zhenghe FreeLLM 2API authentication in the CPA panel or sign in here."`,
+		`"浮动倍率": "Floating"`,
+		`"基础月度套餐": "Base monthly plan"`,
+		`"活动与签到奖励": "Promotional & check-in rewards"`,
+		`"资源包明细": "Resource packages"`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("console page missing expected translation/header entry: %s", want)
+		}
+	}
+
+	stale := `"没有账号。请在 CPA 面板的「添加认证」里选择 FreeTier 2API，或在控制台页发起登录。"`
+	if strings.Contains(page, stale) {
+		t.Fatalf("console translations still reference stale FreeTier 2API empty-account key")
 	}
 }

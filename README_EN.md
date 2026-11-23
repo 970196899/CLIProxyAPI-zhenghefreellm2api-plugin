@@ -12,6 +12,10 @@ If this project helps you, a Star would mean a lot.
 
 > **About this repository**: the original repository `jiandanc/CLIProxyAPI-freetier2api-plugin` disappeared from GitHub together with its owner's account (both the account and the repository return 404). It was maintained by `cxy2730` through `v0.1.62`, during which the plugin ID was `freetier`. **From `v0.1.63` this repository is independently maintained by `970196899`; the plugin ID is now `zhenghefreellm` and the display name is `Zhenghe FreeLLM 2API`, with the build output and store archive renamed accordingly.** The ID change makes this a **replacement install**: swap the old `freetier` shared library for the new `zhenghefreellm` one, and rename the config section from `plugins.configs.freetier` to `plugins.configs.zhenghefreellm`. **Credentials and state need no migration** — the internal `ProviderKey` is still `freetier` and the state directory is still `~/.freetier-plugin`, so existing accounts carry over. History and all tags up to `v0.1.44` are preserved in the archive repository `cxy2730/CLIProxyAPI-freetier2api-plugin-legacy`.
 
+## Compatibility (x86-64)
+
+Root-cause analysis (see upstream PR #2): linux/amd64 builds from **v0.1.60–v0.1.65** crash with `SIGILL` upon `dlopen` on older x86-64 CPUs without AVX (such as Intel J4125, Goldmont Plus) — `gdb` pinpoints `x_cgo_sigaction` in `runtime/cgo`, where `gcc` vectorized a 152-byte `struct sigaction` zeroing into `vmovdqu %ymm0` (an AVX instruction). Cause: GitHub Actions migrated `ubuntu-latest` to Ubuntu 26.04 starting 2026-10-19, whose `gcc` enables AVX by default when compiling `runtime/cgo` C code; neither `CC` nor `CGO_CFLAGS` can override Go's internal `runtime/cgo` flags, so the build must pin the Linux runner to `ubuntu-24.04` (applied in this release) or build inside a container (such as `golang:bookworm`).
+
 ## Features
 
 - Native integration with CLIProxyAPI's Anthropic `/v1/messages`, OpenAI `/v1/chat/completions`, and OpenAI `/v1/responses` endpoints without running a separate gateway service
