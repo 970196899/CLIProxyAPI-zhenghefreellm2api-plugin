@@ -1572,8 +1572,8 @@ func (b *Bridge) ListAvailableModels(ctx context.Context) ([]Model, error) {
 	if len(models) == 0 {
 		return nil, fmt.Errorf("%s -> empty model list, keys=%v", modelListURL, keys)
 	}
-	// 活动模型（HungerG）不在 model/list 里，按 key 补上，见 supplemental.go。
-	return appendSupplemental(models, b.region), nil
+	// 目录外的活动模型（如 HungerG）由 adapter 探测权限后补上，见 models.go。
+	return models, nil
 }
 
 func parseModels(resp map[string]interface{}) []Model {
