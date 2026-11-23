@@ -99,16 +99,6 @@ func (v *adapter) Configure(_ core.Settings, raw map[string]string) {
 	v.origin = strings.TrimSpace(raw["raccoon_origin"])
 }
 
-// ConfigFields 声明小浣熊专属配置。
-func (v *adapter) ConfigFields() []pluginapi.ConfigField {
-	return []pluginapi.ConfigField{
-		{Name: "raccoon_llm_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "LLM 网关基址覆盖（默认 " + DefaultLLMBase + "）。"},
-		{Name: "raccoon_auth_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "鉴权基址覆盖（默认 " + DefaultAuthBase + "）。"},
-		{Name: "raccoon_points_base_url", Type: pluginapi.ConfigFieldTypeString, Description: "积分基址覆盖（默认 " + DefaultPointsBase + "）。"},
-		{Name: "raccoon_origin", Type: pluginapi.ConfigFieldTypeString, Description: "主站 origin 覆盖（默认 " + DefaultOrigin + "）。"},
-	}
-}
-
 // Match 判断一份凭证是否属于本供应商。
 func (v *adapter) Match(fileName, provider string, raw map[string]any) bool {
 	return LooksLikeCredential(raw, fileName, provider)
@@ -523,17 +513,16 @@ func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code strin
 
 // 编译期断言：适配器实际具备的供应商能力。
 var (
-	_ core.Vendor               = (*adapter)(nil)
-	_ core.CallbackSubmitter    = (*adapter)(nil)
-	_ core.CheckinProvider      = (*adapter)(nil)
-	_ core.CheckinCapability    = (*adapter)(nil)
-	_ core.Configurable         = (*adapter)(nil)
-	_ core.ConfigFieldsProvider = (*adapter)(nil)
-	_ core.CreditsProvider      = (*adapter)(nil)
-	_ core.LoginProvider        = (*adapter)(nil)
-	_ core.ModelsProvider       = (*adapter)(nil)
-	_ core.QuotaProvider        = (*adapter)(nil)
-	_ core.Refresher            = (*adapter)(nil)
-	_ core.StorageMerger        = (*adapter)(nil)
-	_ core.TaskRunner           = (*adapter)(nil)
+	_ core.Vendor            = (*adapter)(nil)
+	_ core.CallbackSubmitter = (*adapter)(nil)
+	_ core.CheckinProvider   = (*adapter)(nil)
+	_ core.CheckinCapability = (*adapter)(nil)
+	_ core.Configurable      = (*adapter)(nil)
+	_ core.CreditsProvider   = (*adapter)(nil)
+	_ core.LoginProvider     = (*adapter)(nil)
+	_ core.ModelsProvider    = (*adapter)(nil)
+	_ core.QuotaProvider     = (*adapter)(nil)
+	_ core.Refresher         = (*adapter)(nil)
+	_ core.StorageMerger     = (*adapter)(nil)
+	_ core.TaskRunner        = (*adapter)(nil)
 )
