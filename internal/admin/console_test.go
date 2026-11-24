@@ -946,3 +946,26 @@ func TestPageBytesCached(t *testing.T) {
 		t.Fatal("a different base path must render its own page")
 	}
 }
+
+// TestConsoleMobileFeedbackVisible 锁定窄屏下两条「点了没反应」的反馈通道。
+//
+// 事故一：手机上点「读取模型清单」，sticky 横幅贴在页面顶部，被浏览器自带的
+// 悬浮工具条 / 地址栏盖住，用户看不到任何状态。窄屏必须改成视口内的固定浮层。
+// 事故二：点「添加账号」选完渠道后，「完成授权 / 手机验证码 / API Key」面板
+// 展开在工具栏下方，常常落在屏幕外，同样像是没反应，必须滚进视野。
+func TestConsoleMobileFeedbackVisible(t *testing.T) {
+	page := Page("/plugins/freetier")
+
+	for _, literal := range []string{
+		".banner.show {\n    position: fixed", // 窄屏横幅改成固定浮层
+		"function revealPanel(",               // 面板展开后滚进视野
+		"revealPanel(login)",
+		"revealPanel(box)",
+		"revealPanel(apiKeyBox)",
+		".vendor-tabs { flex-wrap: nowrap", // 渠道标签单行横滑，不再堆五六行
+	} {
+		if !strings.Contains(page, literal) {
+			t.Fatalf("console page missing mobile-feedback marker (%s)", literal)
+		}
+	}
+}

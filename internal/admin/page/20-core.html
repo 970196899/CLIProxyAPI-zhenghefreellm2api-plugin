@@ -197,6 +197,16 @@
 
   var bannerTimer = null;
 
+  // revealPanel 把刚展开的面板滚进视野。
+  //
+  // 「完成授权 / 手机验证码 / API Key」三块面板都嵌在账号卡里、位于工具栏
+  // 之下：手机上点完「添加账号」再选供应商，面板往往落在屏幕外，看起来
+  // 像点了没反应。block:"nearest" 只在看不见时才滚，已经在视野里就不动。
+  function revealPanel(el) {
+    if (!el || el.hidden || typeof el.scrollIntoView !== "function") return;
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
   function banner(kind, text, duration) {
     if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     var el = document.getElementById("banner");

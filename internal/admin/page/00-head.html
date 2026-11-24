@@ -432,6 +432,20 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .tgroup.lead .dropdown-menu { left: 0; right: 0; width: auto; min-width: 0; }
   #accounts table { min-width: 700px; }
   #models table { min-width: 720px; }
+  /* 供应商标签在手机上一行放不下就换行，十几个渠道能堆五六行，把账号表整个
+     挤到首屏之外。窄屏改成单行横向滚动（隐藏滚动条），高度固定一行。 */
+  .vendor-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+                 scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .vendor-tabs::-webkit-scrollbar { display: none; }
+  .vendor-tabs > .vtab { flex: 0 0 auto; }
+  /* 提示横幅在手机上改成居中浮层：手机浏览器自带的悬浮工具条 / 地址栏会压住
+     顶部 sticky 的横幅，点了「读取模型清单」「一键任务」之后等于没有任何反馈。
+     固定到视口中部，任何浏览器 UI 都挡不住；最长 46vh，超出内部滚动。 */
+  .banner.show {
+    position: fixed; top: 50%; left: 12px; right: 12px; margin: 0;
+    transform: translateY(-50%); z-index: 70;
+    box-shadow: var(--shadow-pop); max-height: 46vh;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

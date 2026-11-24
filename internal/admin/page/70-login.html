@@ -24,6 +24,7 @@
     if (apiKey) apiKey.hidden = true;
     if (!login) return;
     login.hidden = false;
+    revealPanel(login);
     document.getElementById("loginTitle").textContent = t("添加 ") + providerName(vendor.name) + t(" 账号（网页登录）");
     document.getElementById("loginUrl").value = "";
     var pasteBox = document.getElementById("loginPasteBox");
@@ -273,6 +274,7 @@
     if (login) login.hidden = true;
     if (apiKey) apiKey.hidden = true;
     box.hidden = false;
+    revealPanel(box);
     document.getElementById("smsTitle").textContent = t("添加 ") + providerName(vendor.name) + t(" 账号（手机验证码登录）");
     document.getElementById("inputSmsPhone").value = "";
     document.getElementById("inputSmsCode").value = "";
@@ -299,6 +301,7 @@
     var status = document.getElementById("loginStatus");
     var pasteBox = document.getElementById("loginPasteBox");
     box.hidden = false;
+    revealPanel(box);
     urlField.value = "";
     status.textContent = t("正在获取授权链接…");
 
