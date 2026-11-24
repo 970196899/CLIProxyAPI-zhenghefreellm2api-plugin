@@ -1582,30 +1582,20 @@ func nestedMap(raw map[string]any, path ...string) map[string]any {
 // ── 额度重置（客户端 usage-stats 服务）────────────────────────────────────
 //
 // 官方桌面端在 5 小时 / 周额度用尽时，可以消耗一张「重置机会」立刻重置窗口。
+// **这是账号级的手动操作，不是自动任务**：代理侧只读 status 展示「还剩几张」，
+// 绝不自动消耗——重置卡用一张少一张，误消耗等于烧用户权益。
 // 协议来自 app/out/host/index.js：
 //
 //	GET  /api/v1/coding-plan/reset/status → {available_five_hour_resets:[{expire_at}],
 //	                                         available_week_resets:[{expire_at}],
 //	                                         latest_*_reset_history, has_unread_history}
-//	POST /api/v1/coding-plan/reset/use    → {used:true} / {granted:false,next_try_at}
+//	POST /api/v1/coding-plan/reset/use    → {idempotency_key, reset_type}（**未接入**）
 //
 // 注意基地址：这族在 /api/v1/coding-plan 下，不在 /api/v1/zcode-plan 下。
 
 const (
 	// PathCodingPlanResetStatus 查询可用的重置机会。
 	PathCodingPlanResetStatus = "/api/v1/coding-plan/reset/status"
-	// PathCodingPlanResetUse 消耗一次重置机会。
-	PathCodingPlanResetUse = "/api/v1/coding-plan/reset/use"
-)
-
-// ResetType 是重置窗口的类型。
-type ResetType string
-
-const (
-	// ResetTypeFiveHour 重置 5 小时窗口。
-	ResetTypeFiveHour ResetType = "five_hour"
-	// ResetTypeWeek 重置周窗口。
-	ResetTypeWeek ResetType = "week"
 )
 
 // ResetSlot 是一张待用的重置机会；ExpireAt 是它的过期时刻（秒）。
@@ -1648,24 +1638,4 @@ func FetchCodingPlanResetStatus(ctx context.Context, cred *Credential) (*CodingP
 		return nil, transientErr("ZCode 重置状态响应无法解析: " + errDecode.Error())
 	}
 	return &status, nil
-}
-
-// UseCodingPlanReset 消耗一张重置机会。
-//
-// idempotency_key 由调用方生成：上游按它去重，重试同一把钥匙不会多扣一次。
-// reset_type 的取值按字段命名推断（five_hour / week），上游若改枚举会回业务码
-// 错误，这里如实上抛，不做猜测性重试。
-func UseCodingPlanReset(ctx context.Context, cred *Credential, kind ResetType) error {
-	payload := map[string]string{
-		"idempotency_key": core.RandomHex(16),
-		"reset_type":      string(kind),
-	}
-	code, data, errUse := billingRequestAt(ctx, cred, http.MethodPost, ZCodeOrigin, PathCodingPlanResetUse, payload, nil)
-	if errUse != nil {
-		return errUse
-	}
-	if code != codeSuccess {
-		return Classify(0, classifyBillingOutcome(code, data))
-	}
-	return nil
 }
