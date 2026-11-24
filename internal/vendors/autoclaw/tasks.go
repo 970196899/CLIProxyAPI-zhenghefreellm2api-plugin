@@ -62,6 +62,23 @@ func Checkin(ctx context.Context, baseURL string, cred *Credential) (*CheckinRes
 	if errRead != nil {
 		return nil, &core.Failure{Status: resp.StatusCode, Msg: "read checkin response: " + errRead.Error(), Kind: core.FailureKindTransient}
 	}
+	// 2.0.3 起旧签到路由 /autoclaw-task-complete 已下线（桌面端 grep 零命中），
+	// 每日积分改由 user-info 发放；官方客户端对它是 fire-and-forget（不看响应），
+	// 我们也照做，但把「今天已处理」如实标成 claimed，避免用户每天点一次都提示失败。
+	if resp.StatusCode == http.StatusNotFound {
+		if errActive := reportLoginActive(ctx, baseURL, cred); errActive != nil {
+			return nil, &core.Failure{
+				Msg:  "签到端点已下线，每日积分接口失败: " + errActive.Error(),
+				Kind: core.FailureKindTransient,
+			}
+		}
+		return &CheckinResult{
+			Claimed: true,
+			TaskID:  "user-info",
+			Msg:     "旧签到端点已下线，已改用每日积分接口（user-info）",
+		}, nil
+	}
+
 	var envelope struct {
 		Code *int64 `json:"code"`
 		Msg  string `json:"msg"`
