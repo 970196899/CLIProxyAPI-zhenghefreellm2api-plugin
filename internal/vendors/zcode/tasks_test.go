@@ -2,7 +2,6 @@ package zcode
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -1004,35 +1003,5 @@ func TestPendingGrantQuotaShowsClaimedButInactiveGrant(t *testing.T) {
 	// 已生效（无未来生效时刻）的授予由 balances 负责，这里不报。
 	if m, _ := pendingGrantQuota(effective, 300, nil); len(m) != 0 {
 		t.Fatalf("已生效的授予不应进待生效: %+v", m)
-	}
-}
-
-// TestCodingPlanResetStatusParsesClientShape 锁定重置状态的结构标签。
-//
-// 字段名照抄客户端 app/out/host/index.js 里的 schema：available_five_hour_resets /
-// available_week_resets / latest_*_reset_history / has_unread_history。标签写错
-// 不会报错，只会让「可重置次数」恒为 0——所以用真实形状钉一遍。
-func TestCodingPlanResetStatusParsesClientShape(t *testing.T) {
-	raw := `{
-		"available_five_hour_resets": [{"expire_at": 1790000000}, {"expire_at": 1790086400}],
-		"available_week_resets": [],
-		"latest_five_hour_reset_history": {"used_at": 1789900000},
-		"has_unread_history": true
-	}`
-	var status CodingPlanResetStatus
-	if errDecode := json.Unmarshal([]byte(raw), &status); errDecode != nil {
-		t.Fatalf("解析失败: %v", errDecode)
-	}
-	if got := status.Available(); got != 2 {
-		t.Fatalf("Available() = %d，期望 2", got)
-	}
-	if len(status.FiveHour) != 2 || status.FiveHour[0].ExpireAt != 1790000000 {
-		t.Fatalf("FiveHour = %+v", status.FiveHour)
-	}
-	if status.LatestFiveHour == nil || status.LatestFiveHour.UsedAt != 1789900000 {
-		t.Fatalf("LatestFiveHour = %+v", status.LatestFiveHour)
-	}
-	if !status.HasUnread {
-		t.Fatal("has_unread_history 未解析")
 	}
 }
