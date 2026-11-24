@@ -218,7 +218,7 @@ func ExtractClientIP(header http.Header) string {
 
 // 本文件提供供应商共用的随机串与 PKCE 助手。
 //
-// 这些逻辑原本在 codearts/qoder/zcode/opencodezen/minimaxcode/workbuddy
+// 这些逻辑原本在 codearts/qoder/zcode/minimaxcode/workbuddy
 // 各有一份（签名还不一致）；统一到这里，随机源不可用时统一走确定性兜底。
 
 var randomFallbackCounter int64

@@ -15,7 +15,7 @@ If this project helps you, a Star would mean a lot.
 ## Features
 
 - Native integration with CLIProxyAPI's Anthropic `/v1/messages`, OpenAI `/v1/chat/completions`, and OpenAI `/v1/responses` endpoints without running a separate gateway service
-- Supports 15 free-tier provider instances across 8 vendor families (AutoClaw CN/Global and Raccoon included) with strict per-vendor credential isolation and no account cap
+- Supports 14 free-tier provider instances across 8 vendor families (AutoClaw CN/Global and Raccoon included) with strict per-vendor credential isolation and no account cap
 - Dynamic model catalog discovery, custom model aliases, and cross-provider load balancing / failover
 - Built-in single-page Web console for OAuth device login, localhost callback paste, API Key import, account aliases, batch enable/disable/delete, quota tracking, check-in, model toggling, and settings (the task center and log page were removed; logs live in the host UI)
 - Console account view is paged by provider (All / each vendor, with counts); rows are compact (~34px) so 11 accounts fit on one screen without scrolling. Actions are grouped by purpose, and buttons never shrink below their label on narrow screens
@@ -36,7 +36,6 @@ If this project helps you, a Star would mean a lot.
 | `qodercn` | Qoder CN | `cn` | OAuth Device Flow | `qodercn-*.json` |
 | `qoderglobal` | Qoder Global | `global` | OAuth Device Flow | `qoderglobal-*.json` |
 | `raccoon` | Raccoon (XiaoHuanXiong) | — | API Key | `raccoon-*.json` |
-| `opencodezen` | OpenCode ZEN | `global` | API Key | `opencodezen-*.json` |
 | `cline` | Cline | `global` | WorkOS Device Flow | `cline-*.json` |
 | `zcodecn` | ZCode CN | `cn` | OAuth CLI Flow (BigModel) | `zcodecn-*.json` |
 | `zcodeglobal` | ZCode Global | `global` | OAuth CLI Flow (z.ai) | `zcodeglobal-*.json` |

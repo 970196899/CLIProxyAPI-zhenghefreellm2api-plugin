@@ -19,7 +19,7 @@
 ## 功能特性
 
 - 复用宿主 Anthropic `/v1/messages`、OpenAI `/v1/chat/completions` 与 OpenAI `/v1/responses` 接口，无需额外部署独立网关
-- 支持 8 大体系共 15 个国内外免费额度供应商实例（AutoClaw 国内/国际与小浣熊已接入），凭证严格按供应商隔离，账号数量不设上限
+- 支持 8 大体系共 14 个国内外免费额度供应商实例（AutoClaw 国内/国际与小浣熊已接入），凭证严格按供应商隔离，账号数量不设上限
 - 模型清单动态探测、自定义模型别名与跨供应商同名模型自动负载均衡/故障转移
 - 内嵌单页 Web 控制台：OAuth 设备授权 / 本地回调粘贴 / API Key 添加账号、账号别名、批量启停删除、额度可视化、签到、模型启停与设置（任务中心与运行日志页已移除，日志统一走宿主官方页）
 - 控制台账号视图按渠道分页（全部 / 各供应商，带账号数），行高压到约 34px，11 个账号一屏看完不用滚动；按钮按语义分组，窄屏排成两列网格，不会被压到比文字还窄
@@ -40,7 +40,6 @@
 | `qodercn` | Qoder 国内版 | `cn` | OAuth 设备授权 | `qodercn-*.json` |
 | `qoderglobal` | Qoder 国际版 | `global` | OAuth 设备授权 | `qoderglobal-*.json` |
 | `raccoon` | 小浣熊 | — | API Key | `raccoon-*.json` |
-| `opencodezen` | OpenCode ZEN | `global` | API Key | `opencodezen-*.json` |
 | `cline` | Cline | `global` | WorkOS 设备授权 | `cline-*.json` |
 | `zcodecn` | ZCode 国内版 | `cn` | OAuth CLI 授权（智谱开放平台 bigmodel） | `zcodecn-*.json` |
 | `zcodeglobal` | ZCode 国际版 | `global` | OAuth CLI 授权（z.ai） | `zcodeglobal-*.json` |

@@ -533,7 +533,7 @@ func TestConsolePageWiresLoginCallbackPasteBox(t *testing.T) {
 
 // TestConsoleQuotaCellUsesCapability 锁定账号表额度列的状态判定。
 //
-// 「查询中…」只能表示**确实在查**。上游没有额度接口的供应商（OpenCode ZEN）
+// 「查询中…」只能表示**确实在查**。上游没有额度接口的供应商（Cline）
 // 永远不会有结果，若页面把「没有结果」一律当成查询中，那一行就会永久卡在
 // 「查询中…」，而正确展示是「-- / --」。因此分支必须读后端给的能力标志
 // supports_quota，而不是靠结果是否存在反推。

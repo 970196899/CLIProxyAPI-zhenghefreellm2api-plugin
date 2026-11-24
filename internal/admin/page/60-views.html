@@ -60,7 +60,7 @@
   // startVendorAdd 根据供应商能力决定「添加账号」的动作。
   //
   // 支持登录的供应商（Cline / WorkBuddy / Qoder）→ 发起设备授权；
-  // 纯 API key 的供应商（OpenCode ZEN）→ 展开 API Key 输入框，保存后直写凭证文件。
+  // 纯 API key 的供应商（Cline / ZCode 等）→ 展开 API Key 输入框，保存后直写凭证文件。
   function startVendorAdd(vendor) {
     var loginBox = document.getElementById("loginBox");
     var apiKeyBox = document.getElementById("apiKeyBox");

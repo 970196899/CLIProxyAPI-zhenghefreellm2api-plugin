@@ -55,7 +55,7 @@ func TestLooksLikeCredentialStrict(t *testing.T) {
 		{"pair without uid is foreign", "acc.json", `{"access_token":"a","refresh_token":"r"}`, false},
 		{"camel pair is foreign", "acc.json", `{"accessToken":"a","refreshToken":"r"}`, false},
 		{"generic token is foreign", "acc.json", `{"token":"t"}`, false},
-		{"foreign vendor is foreign", "acc.json", `{"vendor":"opencodezen"}`, false},
+		{"foreign vendor is foreign", "acc.json", `{"vendor":"cline"}`, false},
 		{"empty is nothing", "acc.json", `{}`, false},
 	}
 	for _, tc := range cases {

@@ -101,7 +101,7 @@ func (v *splitVendor) Match(_ string, _ string, raw map[string]any) bool {
 	return region == v.region
 }
 
-// greedyVendor 模拟「内容里有 api_key 就认领」的供应商（如 opencodezen）。
+// greedyVendor 模拟「内容里有 api_key 就认领」的供应商。
 type greedyVendor struct{ fakeVendor }
 
 func (v *greedyVendor) Match(_ string, _ string, raw map[string]any) bool {
@@ -112,7 +112,7 @@ func (v *greedyVendor) Match(_ string, _ string, raw map[string]any) bool {
 //
 // 拆实例换掉了 vendorID，文件名 zcode-*.json 与 vendor=zcode 都不再命中现役
 // ID；若直接落到内容嗅探，先注册的 apikey 型供应商会把它抢走（线上真实发生：
-// ZCode 凭证被 opencodezen 认领）。旧标识只说明家族，归属必须落回该家族。
+// ZCode 凭证被通用 api_key 规则认领）。旧标识只说明家族，归属必须落回该家族。
 func TestResolveLegacyIDKeepsOwnership(t *testing.T) {
 	registry := newTestRegistry(t,
 		&greedyVendor{fakeVendor{Meta: Meta{VendorID: "testgreedy"}}},

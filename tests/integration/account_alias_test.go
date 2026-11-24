@@ -59,11 +59,11 @@ func TestAccountAliasWinsDisplayAndIsolatesAccounts(t *testing.T) {
 	host := installFakeHost(t)
 	setupTestPlugin(t)
 	host.addAccount("1", "traecn-shared.json", traecnSharedCredential("test-access-token"))
-	host.addAccount("2", "opencodezen-shared.json", `{"api_key":"sk-test-opencode","label":"shared-account"}`)
+	host.addAccount("2", "cline-shared.json", `{"type":"cline","refreshToken":"workos:rt-test","label":"shared-account"}`)
 
 	// 未设别名：行为与引入别名之前一致——两个账号都显示各自的上游昵称。
 	baseline := aliasAccountsByFileID(t)
-	for _, fileID := range []string{"traecn-shared", "opencodezen-shared"} {
+	for _, fileID := range []string{"traecn-shared", "cline-shared"} {
 		account, ok := baseline[fileID]
 		if !ok {
 			t.Fatalf("missing account %q in /status: %+v", fileID, baseline)
@@ -79,7 +79,7 @@ func TestAccountAliasWinsDisplayAndIsolatesAccounts(t *testing.T) {
 		t.Fatalf("alias must win the display chain: %+v", got)
 	}
 	// 键是账号身份而非昵称：同昵称的另一个账号不能被顺带改名。
-	if got := afterSet["opencodezen-shared"]; got.Label != "shared-account" || got.Alias != "" {
+	if got := afterSet["cline-shared"]; got.Label != "shared-account" || got.Alias != "" {
 		t.Fatalf("same-nickname account must keep its own name: %+v", got)
 	}
 

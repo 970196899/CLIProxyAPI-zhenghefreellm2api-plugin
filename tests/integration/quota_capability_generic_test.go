@@ -3,7 +3,7 @@ package tests
 // 本文件锁定「额度能力判定对所有供应商通用」。
 //
 // 页面只读一个字段 accounts[].supports_quota，因此这个字段必须对**每一个**
-// 已注册的供应商实例都成立，而不是只对 OpenCode ZEN 打的补丁：
+// 已注册的供应商实例都成立，而不是只对某一家打的补丁：
 //   - 实现了 QuotaProvider 的供应商 → true（没查到就短暂显示「查询中…」）；
 //   - 没实现的 → false（立即显示「-- / --」，永不进入查询中）。
 //
@@ -48,7 +48,7 @@ func TestSupportsQuotaIsGenericAcrossVendors(t *testing.T) {
 		}
 	}
 	if len(withoutQuota) == 0 {
-		t.Fatal("expected at least one vendor without quota (cline, opencodezen); " +
+		t.Fatal("expected at least one vendor without quota (cline); " +
 			"if all vendors now implement Quota, update this assertion")
 	}
 	if len(withQuota) == 0 {
@@ -59,7 +59,7 @@ func TestSupportsQuotaIsGenericAcrossVendors(t *testing.T) {
 	// 快照：把「谁没有额度接口」钉死。它不是实现细节，而是**用户可见行为**
 	// ——这些供应商的账号会立刻显示「-- / --」。新增/移除 Quota 实现时必须
 	// 同步更新这里，并确认页面语义仍然正确。
-	wantNoQuota := map[string]bool{"cline": true, "opencodezen": true}
+	wantNoQuota := map[string]bool{"cline": true}
 	if len(withoutQuota) != len(wantNoQuota) {
 		t.Fatalf("no-quota vendors = %v, want %v", withoutQuota, wantNoQuota)
 	}

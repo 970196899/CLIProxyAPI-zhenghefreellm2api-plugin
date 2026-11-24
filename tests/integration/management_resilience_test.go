@@ -216,22 +216,22 @@ func managementCallWithCancel(t *testing.T, method, path string) pluginapi.Manag
 	return resp
 }
 
-// TestForAuthFailureDoesNotWipeModelCache 复现 OpenCode 模型偶发消失的事故。
+// TestForAuthFailureDoesNotWipeModelCache 复现模型清单偶发消失的事故。
 //
 // 供应商在探测失败时按契约返回空清单（让宿主淘汰坏凭证）。若这条路径把空
 // 清单写进控制台缓存，一次瞬时 401 就会让整家供应商的模型消失，且要等下一轮
 // 探测成功才回来。期望：宿主拿到的仍是空清单，但控制台缓存保持原样。
 //
-// 用 OpenCode ZEN 而非 WorkBuddy 复现：前者每次 model.for_auth 都真打上游
+// 用 AutoClaw 国际版而非 WorkBuddy 复现：前者每次 model.for_auth 都真打上游
 // （WorkBuddy 有 1 小时目录缓存，第二次不会失败）。
 func TestForAuthFailureDoesNotWipeModelCache(t *testing.T) {
 	host := installFakeHost(t)
 	setupTestPlugin(t)
-	host.addAccount("1", "opencodezen-oc_test.json", `{"api_key":"sk-test-opencode","label":"zen-test"}`)
+	host.addAccount("1", "autoclawglobal-oc_test.json", `{"vendor":"autoclawglobal","access_token":"sk-test-autoclaw","label":"zen-test"}`)
 
 	failing := false
 	host.setUpstream(func(method, url, body string) fakeUpstreamResponse {
-		if !strings.Contains(url, "/inference/v1/models") {
+		if !strings.Contains(url, "autoclaw-model-config") {
 			return fakeUpstreamResponse{Status: http.StatusNotFound, Body: `{"code":404}`}
 		}
 		if failing {
@@ -239,13 +239,13 @@ func TestForAuthFailureDoesNotWipeModelCache(t *testing.T) {
 		}
 		return fakeUpstreamResponse{
 			Status: http.StatusOK,
-			Body:   `{"data":[{"id":"kept-model-free"},{"id":"other-model"}]}`,
+			Body:   `{"data":{"models":[{"id":"kept-model-free"},{"id":"other-model"}]}}`,
 		}
 	})
 
 	// 先成功一次，写入控制台缓存。
 	callMethod(t, pluginabi.MethodModelForAuth, pluginapi.AuthModelRequest{AuthID: "1"})
-	if len(testApp.RegisteredModels("opencodezen")) == 0 {
+	if len(testApp.RegisteredModels("autoclawglobal")) == 0 {
 		t.Fatal("first for_auth call must populate the console cache")
 	}
 
@@ -259,7 +259,7 @@ func TestForAuthFailureDoesNotWipeModelCache(t *testing.T) {
 	if len(resp.Models) != 0 {
 		t.Fatalf("host must still receive an empty list for a failing credential, got %d", len(resp.Models))
 	}
-	models := testApp.RegisteredModels("opencodezen")
+	models := testApp.RegisteredModels("autoclawglobal")
 	if len(models) == 0 || models[0].ID != "kept-model-free" {
 		t.Fatalf("console cache must survive a failed probe, got %+v", models)
 	}
@@ -331,20 +331,20 @@ func TestModelCachePersistsToState(t *testing.T) {
 //   - 模型列表整家消失（ActiveVendorSet 不再包含该供应商）；
 //   - 额度批量查询跳过该账号 → 没有结果 → 页面永远停在「查询中…」。
 //
-// 用 OpenCode ZEN 而非 Trae 验证模型侧：它没有 ConsoleModelProvider，
+// 用 AutoClaw 国际版而非 Trae 验证模型侧：它没有 ConsoleModelProvider，
 // 控制台列表直接来自 Catalog 缓存，能干净地反映「这家有没有被跳过」。
 func TestUnavailableCredentialStillServesConsole(t *testing.T) {
 	host := installFakeHost(t)
 	setupTestPlugin(t)
-	host.addAccount("1", "opencodezen-oc_test.json", `{"api_key":"sk-test-opencode","label":"zen-test"}`)
+	host.addAccount("1", "autoclawglobal-oc_test.json", `{"vendor":"autoclawglobal","access_token":"sk-test-autoclaw","label":"zen-test"}`)
 	host.setUpstream(func(method, url, body string) fakeUpstreamResponse {
-		if strings.Contains(url, "/inference/v1/models") {
-			return fakeUpstreamResponse{Status: http.StatusOK, Body: `{"data":[{"id":"kept-model-free"}]}`}
+		if strings.Contains(url, "autoclaw-model-config") {
+			return fakeUpstreamResponse{Status: http.StatusOK, Body: `{"data":{"models":[{"id":"kept-model-free"}]}}`}
 		}
 		return fakeUpstreamResponse{Status: http.StatusNotFound, Body: `{"code":404}`}
 	})
 	// 宿主因上游限流给它打上临时冷却。
-	host.MarkUnavailable("opencodezen-oc_test.json", true)
+	host.MarkUnavailable("autoclawglobal-oc_test.json", true)
 
 	models := managementCall(t, "GET", "/models")
 	var payload struct {
@@ -357,7 +357,7 @@ func TestUnavailableCredentialStillServesConsole(t *testing.T) {
 	}
 	var listed bool
 	for _, model := range payload.Models {
-		if model.VendorID == "opencodezen" {
+		if model.VendorID == "autoclawglobal" {
 			listed = true
 		}
 	}
@@ -399,13 +399,13 @@ func TestUnavailableCredentialStillQueried(t *testing.T) {
 //     永远停在「查询中…」——「查过但失败」与「还没查」是两种状态；
 //   - 模型探测同样失败，但**已缓存的清单必须保留**，不能让整家供应商消失。
 //
-// 两个断言分别用两家供应商：OpenCode ZEN 有模型接口但没有额度接口，用它
-// 验证缓存保留；Trae 有额度接口，用它验证失败结果被缓存（用 OpenCode 测
+// 两个断言分别用两家供应商：AutoClaw 国际版有模型接口但没有额度接口，用它
+// 验证缓存保留；Trae 有额度接口，用它验证失败结果被缓存（用 AutoClaw 测
 // 额度会走「不支持」分支，等于没测到冷却）。
 func TestCooldownWithFailingUpstreamKeepsConsole(t *testing.T) {
 	host := installFakeHost(t)
 	setupTestPlugin(t)
-	host.addAccount("1", "opencodezen-oc_test.json", `{"api_key":"sk-test-opencode","label":"zen-test"}`)
+	host.addAccount("1", "autoclawglobal-oc_test.json", `{"vendor":"autoclawglobal","access_token":"sk-test-autoclaw","label":"zen-test"}`)
 	host.addAccount("2", "traecn-test.json",
 		`{"vendor":"traecn","region":"cn","access_token":"test-access-token","uid":"2487573687317868"}`)
 
@@ -414,8 +414,8 @@ func TestCooldownWithFailingUpstreamKeepsConsole(t *testing.T) {
 		if !healthy {
 			return fakeUpstreamResponse{Status: http.StatusTooManyRequests, Body: `{"error":{"message":"rate limited"}}`}
 		}
-		if strings.Contains(url, "/inference/v1/models") {
-			return fakeUpstreamResponse{Status: http.StatusOK, Body: `{"data":[{"id":"kept-model-free"}]}`}
+		if strings.Contains(url, "autoclaw-model-config") {
+			return fakeUpstreamResponse{Status: http.StatusOK, Body: `{"data":{"models":[{"id":"kept-model-free"}]}}`}
 		}
 		if strings.Contains(url, "pay/ide_user_ent_usage") {
 			return fakeUpstreamResponse{
@@ -432,7 +432,7 @@ func TestCooldownWithFailingUpstreamKeepsConsole(t *testing.T) {
 
 	// 上游开始失败，宿主同时打上临时冷却。
 	healthy = false
-	host.MarkUnavailable("opencodezen-oc_test.json", true)
+	host.MarkUnavailable("autoclawglobal-oc_test.json", true)
 	host.MarkUnavailable("traecn-test.json", true)
 
 	// 模型：已缓存的清单必须保留。

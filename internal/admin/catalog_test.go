@@ -301,7 +301,7 @@ func TestLoadCachedStateDropsRemovedVendor(t *testing.T) {
 
 // TestCacheProbedModelsKeepsPreviousOnEmpty 锁定「探测失败不清空缓存」。
 //
-// 真实事故：OpenCode ZEN 的 model.for_auth 在探测失败时按契约返回空清单
+// 真实事故：某纯 key 供应商的 model.for_auth 在探测失败时按契约返回空清单
 // （让宿主淘汰坏凭证），调用方若照样写缓存，一次瞬时 401 就会让整家供应商
 // 从控制台消失。探测型写入必须走 CacheProbedModels。
 func TestCacheProbedModelsKeepsPreviousOnEmpty(t *testing.T) {
