@@ -265,6 +265,9 @@ func (v *adapter) LoginPoll(ctx context.Context, state string) (*pluginapi.AuthL
 // AutoTaskCodeActivity 是一键任务里「活动资格」那一行的任务码。
 const AutoTaskCodeActivity = "(活动资格)"
 
+// AutoTaskCodeReset 是一键任务里「额度重置」那一行的任务码。
+const AutoTaskCodeReset = "(额度重置)"
+
 // RunAllTasks 执行一键任务。
 //
 // ZCode 的活动套餐领取必须带人机验证（core.PlanClaimRequest.VerifyParam 由
@@ -296,24 +299,64 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 	default:
 		message += "；当前没有可领的活动"
 	}
-	return append(results, core.AutoTaskResult{
+	results = append(results, core.AutoTaskResult{
 		Code:    AutoTaskCodeActivity,
 		Status:  "done",
 		Message: message,
 	})
+	// 额度重置：有可用机会就立刻用一张（优先 5 小时窗口，恢复更快）。
+	// 没有机会不是失败，按 skipped 报，避免一键任务里出现一排红字。
+	if native, errNative := v.Native(cred); errNative == nil {
+		status, errStatus := FetchCodingPlanResetStatus(ctx, native)
+		switch {
+		case errStatus != nil:
+			results = append(results, core.AutoTaskResult{
+				Code:    AutoTaskCodeReset,
+				Status:  "error",
+				Message: core.ToPluginError(errStatus).Error(),
+			})
+		case status.Available() == 0:
+			results = append(results, core.AutoTaskResult{
+				Code:    AutoTaskCodeReset,
+				Status:  "skipped",
+				Message: "当前没有可用的额度重置机会",
+			})
+		default:
+			kind, label := ResetTypeFiveHour, "5 小时"
+			if len(status.FiveHour) == 0 {
+				kind, label = ResetTypeWeek, "周"
+			}
+			if errUse := UseCodingPlanReset(ctx, native, kind); errUse != nil {
+				results = append(results, core.AutoTaskResult{
+					Code:    AutoTaskCodeReset,
+					Status:  "error",
+					Message: "重置" + label + "额度失败：" + core.ToPluginError(errUse).Error(),
+				})
+			} else {
+				results = append(results, core.AutoTaskResult{
+					Code:    AutoTaskCodeReset,
+					Status:  "done",
+					Message: "已消耗一张重置机会，重置了" + label + "额度窗口",
+				})
+			}
+		}
+	}
+	return results
 }
 
 // RunTask 执行单条任务。ZCode 可自动执行的动作只有活动资格上报。
 func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code string) (core.TaskRunResult, error) {
-	if strings.TrimSpace(code) != AutoTaskCodeActivity {
+	want := strings.TrimSpace(code)
+	if want != AutoTaskCodeActivity && want != AutoTaskCodeReset {
 		return core.TaskRunResult{Status: "skipped", Message: "该供应商没有这条任务"}, nil
 	}
 	rows := v.RunAllTasks(ctx, cred)
-	if len(rows) == 0 {
-		return core.TaskRunResult{Status: "skipped", Message: "没有可执行的活动动作"}, nil
+	for _, row := range rows {
+		if row.Code == want {
+			return core.TaskRunResult{Status: row.Status, Message: row.Message}, nil
+		}
 	}
-	row := rows[0]
-	return core.TaskRunResult{Status: row.Status, Message: row.Message}, nil
+	return core.TaskRunResult{Status: "skipped", Message: "没有可执行的动作"}, nil
 }
 
 // 编译期断言：适配器实际具备的供应商能力。

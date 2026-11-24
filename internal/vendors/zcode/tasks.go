@@ -43,6 +43,14 @@ func billingRequest(ctx context.Context, cred *Credential, method, path string, 
 // 领取套餐要在身份头之外补人机验证码头（CaptchaHeader/CaptchaRegionHeader），
 // 而额度查询不需要——用附加头参数区分两者，避免让每个调用方自己拼头。
 func billingRequestWithHeaders(ctx context.Context, cred *Credential, method, path string, payload any, extra map[string]string) (int, map[string]any, error) {
+	return billingRequestAt(ctx, cred, method, BillingBase, path, payload, extra)
+}
+
+// billingRequestAt 与 billingRequestWithHeaders 相同，但可指定基地址。
+//
+// 「额度重置」族不在 /api/v1/zcode-plan 之下（它是 /api/v1/coding-plan），
+// 硬拼 BillingBase 会 404，所以把基地址提出来。
+func billingRequestAt(ctx context.Context, cred *Credential, method, base, path string, payload any, extra map[string]string) (int, map[string]any, error) {
 	var bodyReader io.Reader
 	if payload != nil {
 		encoded, errMarshal := json.Marshal(payload)
@@ -52,7 +60,7 @@ func billingRequestWithHeaders(ctx context.Context, cred *Credential, method, pa
 		bodyReader = bytes.NewReader(encoded)
 	}
 
-	req, errNew := http.NewRequestWithContext(ctx, method, BillingBase+path, bodyReader)
+	req, errNew := http.NewRequestWithContext(ctx, method, base+path, bodyReader)
 	if errNew != nil {
 		return 0, nil, errNew
 	}
@@ -177,6 +185,14 @@ func (v *adapter) fetchQuota(ctx context.Context, cred *Credential) (*pluginapi.
 	snapshot := v.fetchPlanSnapshot(ctx, cred)
 	applySubscription(snapshot, response)
 	response.Claim = claimStatusOf(snapshot)
+	// 重置机会：客户端在额度用尽时可消耗一张立刻重置 5h/周窗口。
+	// 查询失败不影响额度展示（这是附加信息），只在确实有时才输出，避免
+	// 每个账号都多两行「0 次」的噪音。
+	if reset, errReset := FetchCodingPlanResetStatus(ctx, cred); errReset == nil && reset.Available() > 0 {
+		response.Summary = append(response.Summary,
+			pluginapi.QuotaMetric{Key: "reset_five_hour", Label: "5 小时窗口重置次数", Value: float64(len(reset.FiveHour))},
+			pluginapi.QuotaMetric{Key: "reset_week", Label: "周窗口重置次数", Value: float64(len(reset.Week))})
+	}
 	response.Summary = append(response.Summary, snapshot.metrics...)
 	response.Groups = append(response.Groups, snapshot.groups...)
 	if snapshot.errBalance != nil {
@@ -1561,4 +1577,95 @@ func nestedMap(raw map[string]any, path ...string) map[string]any {
 		}
 	}
 	return raw
+}
+
+// ── 额度重置（客户端 usage-stats 服务）────────────────────────────────────
+//
+// 官方桌面端在 5 小时 / 周额度用尽时，可以消耗一张「重置机会」立刻重置窗口。
+// 协议来自 app/out/host/index.js：
+//
+//	GET  /api/v1/coding-plan/reset/status → {available_five_hour_resets:[{expire_at}],
+//	                                         available_week_resets:[{expire_at}],
+//	                                         latest_*_reset_history, has_unread_history}
+//	POST /api/v1/coding-plan/reset/use    → {used:true} / {granted:false,next_try_at}
+//
+// 注意基地址：这族在 /api/v1/coding-plan 下，不在 /api/v1/zcode-plan 下。
+
+const (
+	// PathCodingPlanResetStatus 查询可用的重置机会。
+	PathCodingPlanResetStatus = "/api/v1/coding-plan/reset/status"
+	// PathCodingPlanResetUse 消耗一次重置机会。
+	PathCodingPlanResetUse = "/api/v1/coding-plan/reset/use"
+)
+
+// ResetType 是重置窗口的类型。
+type ResetType string
+
+const (
+	// ResetTypeFiveHour 重置 5 小时窗口。
+	ResetTypeFiveHour ResetType = "five_hour"
+	// ResetTypeWeek 重置周窗口。
+	ResetTypeWeek ResetType = "week"
+)
+
+// ResetSlot 是一张待用的重置机会；ExpireAt 是它的过期时刻（秒）。
+type ResetSlot struct {
+	ExpireAt int64 `json:"expire_at"`
+}
+
+// ResetHistory 是最近一次使用记录。
+type ResetHistory struct {
+	UsedAt int64 `json:"used_at"`
+}
+
+// CodingPlanResetStatus 是一次重置机会查询的结果。
+type CodingPlanResetStatus struct {
+	FiveHour       []ResetSlot   `json:"available_five_hour_resets"`
+	Week           []ResetSlot   `json:"available_week_resets"`
+	LatestFiveHour *ResetHistory `json:"latest_five_hour_reset_history"`
+	LatestWeek     *ResetHistory `json:"latest_week_reset_history"`
+	HasUnread      bool          `json:"has_unread_history"`
+}
+
+// Available 返回可用的重置机会数（两类相加）。
+func (s CodingPlanResetStatus) Available() int { return len(s.FiveHour) + len(s.Week) }
+
+// FetchCodingPlanResetStatus 查询该账号可用的重置机会。
+func FetchCodingPlanResetStatus(ctx context.Context, cred *Credential) (*CodingPlanResetStatus, error) {
+	code, data, errStatus := billingRequestAt(ctx, cred, http.MethodGet, ZCodeOrigin, PathCodingPlanResetStatus, nil, nil)
+	if errStatus != nil {
+		return nil, errStatus
+	}
+	if code != codeSuccess {
+		return nil, Classify(0, classifyBillingOutcome(code, data))
+	}
+	raw, errMarshal := json.Marshal(dataMap(data))
+	if errMarshal != nil {
+		return nil, transientErr("ZCode 重置状态响应无法编码: " + errMarshal.Error())
+	}
+	var status CodingPlanResetStatus
+	if errDecode := json.Unmarshal(raw, &status); errDecode != nil {
+		return nil, transientErr("ZCode 重置状态响应无法解析: " + errDecode.Error())
+	}
+	return &status, nil
+}
+
+// UseCodingPlanReset 消耗一张重置机会。
+//
+// idempotency_key 由调用方生成：上游按它去重，重试同一把钥匙不会多扣一次。
+// reset_type 的取值按字段命名推断（five_hour / week），上游若改枚举会回业务码
+// 错误，这里如实上抛，不做猜测性重试。
+func UseCodingPlanReset(ctx context.Context, cred *Credential, kind ResetType) error {
+	payload := map[string]string{
+		"idempotency_key": core.RandomHex(16),
+		"reset_type":      string(kind),
+	}
+	code, data, errUse := billingRequestAt(ctx, cred, http.MethodPost, ZCodeOrigin, PathCodingPlanResetUse, payload, nil)
+	if errUse != nil {
+		return errUse
+	}
+	if code != codeSuccess {
+		return Classify(0, classifyBillingOutcome(code, data))
+	}
+	return nil
 }
