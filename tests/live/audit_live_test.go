@@ -120,10 +120,10 @@ func TestLiveActivityAudit(t *testing.T) {
 				quotaState = "ok(nil)"
 			} else {
 				summary := make([]string, 0, len(quota.Summary))
-			for _, metric := range quota.Summary {
-				summary = append(summary, fmt.Sprintf("%s=%.2f", metric.Key, metric.Value))
-			}
-			quotaState = fmt.Sprintf("ok groups=%d %s", len(quota.Groups), strings.Join(summary, " "))
+				for _, metric := range quota.Summary {
+					summary = append(summary, fmt.Sprintf("%s=%.2f", metric.Key, metric.Value))
+				}
+				quotaState = fmt.Sprintf("ok groups=%d %s", len(quota.Groups), strings.Join(summary, " "))
 			}
 		}
 		t.Logf("QUOTA %-46s %-16s %s", name, matched.ID(), quotaState)

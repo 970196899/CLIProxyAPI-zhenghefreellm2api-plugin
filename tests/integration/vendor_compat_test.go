@@ -80,7 +80,7 @@ func TestVendorCapabilities(t *testing.T) {
 	cases := map[string]want{
 		"autoclawcn":        {credits: true, refresh: true, quota: true, checkin: true, models: true, merge: true, configure: true, authMode: "oauth"},
 		"autoclawglobal":    {credits: true, login: true, refresh: true, quota: true, checkin: true, models: true, merge: true, configure: true, authMode: "oauth"},
-		"cline":             {credits: true, login: true, refresh: true, merge: true, configure: true, authMode: "oauth"},
+		"cline":             {credits: true, login: true, refresh: true, quota: true, merge: true, configure: true, authMode: "oauth"},
 		"codearts":          {credits: true, login: true, refresh: true, quota: true, checkin: true, models: true, merge: true, configure: true},
 		"minimaxcodecn":     {login: true, refresh: true, quota: true, checkin: true, models: true, merge: true, configure: true},
 		"minimaxcodeglobal": {login: true, refresh: true, quota: true, checkin: true, models: true, merge: true, configure: true},

@@ -52,11 +52,12 @@ func statusAccounts(t *testing.T) []struct {
 	return payload.Accounts
 }
 
-// TestClineAlsoReportsNoQuota 锁定「没有额度接口的供应商」的展示契约。
+// TestClineReportsQuotaSupport 锁定「实现了额度接口就必须报 true」。
 //
-// Cline 没有额度接口，必须在 /status 里报 supports_quota=false，页面才会
-// 立即显示「-- / --」而不是「查询中…」。
-func TestClineAlsoReportsNoQuota(t *testing.T) {
+// Cline 补上 /users/me + /users/{id}/balance 之后必须报 supports_quota=true，
+// 否则页面永远不查询、只显示「-- / --」。查询前的 quota 必须为空，
+// 表示「还没查过」而不是「查询失败」。
+func TestClineReportsQuotaSupport(t *testing.T) {
 	host := installFakeHost(t)
 	setupTestPlugin(t)
 	host.AddAccount("1", "cline-test.json", `{"type":"cline","refreshToken":"workos:rt-test"}`)
@@ -68,8 +69,8 @@ func TestClineAlsoReportsNoQuota(t *testing.T) {
 	if accounts[0].VendorID != "cline" {
 		t.Fatalf("vendor = %q, want cline", accounts[0].VendorID)
 	}
-	if accounts[0].SupportsQuota {
-		t.Fatal("cline has no quota API: supports_quota must be false")
+	if !accounts[0].SupportsQuota {
+		t.Fatal("cline now implements QuotaProvider: supports_quota must be true")
 	}
 	if accounts[0].Quota != nil {
 		t.Fatalf("quota must be absent before any query: %+v", accounts[0].Quota)
