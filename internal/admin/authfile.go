@@ -22,7 +22,22 @@ import (
 
 // authFileDirs 是宿主不可用时的兜底落盘目录：容器里是 /root/.cli-proxy-api，
 // 本地直跑时是进程工作目录。
+//
+// 工作目录只作为最后一道兜底：宿主进程的 CWD 往往就是安装目录，插件不该往那里
+// 掉凭证文件。Service.saveAuthFile 会先把 <state_dir>/auths 插到最前面。
 var authFileDirs = []string{"/root/.cli-proxy-api", "."}
+
+// authFallbackDirs 返回本实例的兜底目录：状态目录下的 auths 优先，
+// 其次是宿主默认凭证目录，最后才是工作目录。
+func (s *Service) authFallbackDirs() []string {
+	dirs := make([]string, 0, len(authFileDirs)+1)
+	if s != nil && s.deps != nil {
+		if stateDir := strings.TrimSpace(s.deps.Config().StateDir); stateDir != "" {
+			dirs = append(dirs, filepath.Join(stateDir, "auths"))
+		}
+	}
+	return append(dirs, authFileDirs...)
+}
 
 // saveAuthFile 落盘一份凭证。
 //
@@ -30,6 +45,16 @@ var authFileDirs = []string{"/root/.cli-proxy-api", "."}
 // 回调不可用时才直接写盘（与凭证续期写盘兜底同一个理由）。两条都失败才算失败——
 // 调用方必须能把「没保存成功」如实告诉用户，不能出现页面显示成功而磁盘上什么都没有。
 func saveAuthFile(callbackID, fileName string, raw []byte) error {
+	return saveAuthFileInto(authFileDirs, false, callbackID, fileName, raw)
+}
+
+// saveAuthFile 是 saveAuthFileInto 的实例版：兜底目录优先落在状态目录。
+func (s *Service) saveAuthFile(callbackID, fileName string, raw []byte) error {
+	return saveAuthFileInto(s.authFallbackDirs(), true, callbackID, fileName, raw)
+}
+
+// createFirst 为 true 时允许创建第一个目录（状态目录下的 auths 未必已存在）。
+func saveAuthFileInto(dirs []string, createFirst bool, callbackID, fileName string, raw []byte) error {
 	name := sanitizeAuthFileName(fileName)
 	if name == "" || len(raw) == 0 {
 		return fmt.Errorf("凭证缺少文件名或内容")
@@ -44,8 +69,16 @@ func saveAuthFile(callbackID, fileName string, raw []byte) error {
 	}
 	logger.Debug("宿主授权保存失败（%s）：%v", name, errSave)
 
-	for _, dir := range authFileDirs {
-		if fi, errStat := os.Stat(dir); errStat != nil || !fi.IsDir() {
+	for i, dir := range dirs {
+		fi, errStat := os.Stat(dir)
+		if errStat != nil || !fi.IsDir() {
+			if i != 0 || !createFirst {
+				continue
+			}
+			if errMkdir := os.MkdirAll(dir, 0o700); errMkdir != nil {
+				continue
+			}
+		} else if !fi.IsDir() {
 			continue
 		}
 		if errWrite := os.WriteFile(filepath.Join(dir, name), aligned, 0o600); errWrite == nil {

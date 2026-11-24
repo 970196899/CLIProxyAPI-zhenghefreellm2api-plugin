@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"freetier2api-plugin/cpasdk/pluginabi"
@@ -44,6 +46,8 @@ type Host struct {
 	authFiles []core.HostAuth
 	// authJSON 是 auth_index → 凭证 JSON。
 	authJSON map[string]string
+	// authDir 是 host.auth.save 的落盘目录（临时目录，随进程清理）。
+	authDir string
 	// authPaths 是 auth_index → 宿主返回的凭证文件路径（host.auth.get 的 path）。
 	// 真实宿主的 path 不保证绝对：以相对 auth-dir 启动的宿主会返回相对路径。
 	authPaths map[string]string
@@ -62,8 +66,17 @@ type Host struct {
 }
 
 // New 构造一个 Fake Host。
+//
+// authDir 落在系统临时目录：host.auth.save 必须真的写一份文件并回填路径，
+// 否则插件会走「宿主不可用」的兜底落盘，把凭证写进测试进程的工作目录
+// （历史上就因此在 tests/integration/ 里攒出过 autoclawglobal-intl-test.json）。
 func New() *Host {
+	dir, errTemp := os.MkdirTemp("", "freetier-testhost-auths-")
+	if errTemp != nil {
+		dir = os.TempDir()
+	}
 	return &Host{
+		authDir:   dir,
 		authJSON:  map[string]string{},
 		authPaths: map[string]string{},
 		streams:   map[string]*Stream{},
@@ -332,7 +345,20 @@ func (h *Host) handleAuthSave(payload any) (json.RawMessage, error) {
 		h.authFiles[index].Disabled = disabled
 		h.authJSON[h.authFiles[index].AuthIndex] = string(req.JSON)
 	}
-	path := h.authPaths[resolvedAuthIndex(h, req.Name)]
+	index := resolvedAuthIndex(h, req.Name)
+	path := h.authPaths[index]
+	if path == "" {
+		// 新账号（auth 还没登记路径）：真的写一份到临时目录并登记路径，
+		// 让插件走「宿主保存成功」分支，而不是兜底写工作目录。
+		path = filepath.Join(h.authDir, req.Name)
+		if errWrite := os.WriteFile(path, req.JSON, 0o600); errWrite != nil {
+			h.mu.Unlock()
+			return nil, errWrite
+		}
+		if index != "" {
+			h.authPaths[index] = path
+		}
+	}
 	h.mu.Unlock()
 	return marshalJSON(map[string]any{"name": req.Name, "path": path})
 }

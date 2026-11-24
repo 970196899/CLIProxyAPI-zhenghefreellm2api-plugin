@@ -458,7 +458,7 @@ func (s *Service) setAuthDisabled(ctx context.Context, callbackID string, entry 
 	if errUpdate != nil {
 		return errUpdate
 	}
-	if errSave := saveAuthFile(callbackID, filepath.Base(targetPath), updated); errSave != nil {
+	if errSave := s.saveAuthFile(callbackID, filepath.Base(targetPath), updated); errSave != nil {
 		return errSave
 	}
 	logger.Info("授权文件 %s 停用=%t（供应商=%s）", filepath.Base(targetPath), disabled,
@@ -540,7 +540,7 @@ func (s *Service) handleAccountAddRequest(req pluginapi.ManagementRequest) plugi
 		return JSONResponse(http.StatusBadRequest, map[string]any{"ok": false, "error": errLimit.Error()})
 	}
 
-	if errSave := saveAuthFile(callbackID, fileName, rawJSON); errSave != nil {
+	if errSave := s.saveAuthFile(callbackID, fileName, rawJSON); errSave != nil {
 		return JSONResponse(http.StatusInternalServerError, map[string]any{"ok": false, "error": errSave.Error()})
 	}
 	logger.Info("已为供应商 %s 添加授权文件 %s", fileName, vendor.ID())

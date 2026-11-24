@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -171,12 +172,18 @@ func TestHandleLoginCallbackReportsPersistFailure(t *testing.T) {
 	})
 	t.Cleanup(func() { hostbridge.Configure(nil) })
 
-	// 兜底目录指向不存在的路径，让落盘必然失败（不写进测试包目录）。
+	// 兜底目录全部指向不可创建的路径，让落盘必然失败（不写进测试包目录）。
 	original := authFileDirs
 	authFileDirs = []string{filepath.Join(t.TempDir(), "missing")}
 	t.Cleanup(func() { authFileDirs = original })
 
 	deps := newStubDeps(t)
+	// 状态目录的父级是一个普通文件：MkdirAll(<state>/auths) 必然失败。
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if errWrite := os.WriteFile(blocker, []byte("x"), 0o600); errWrite != nil {
+		t.Fatalf("write blocker: %v", errWrite)
+	}
+	deps.cfg.StateDir = filepath.Join(blocker, "state")
 	deps.callbackResult = &core.CallbackSubmitResult{
 		Status: pluginapi.AuthLoginStatusSuccess,
 		Auth:   pluginapi.AuthData{FileName: "traecn-x.json", StorageJSON: []byte("{}")},

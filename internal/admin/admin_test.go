@@ -19,6 +19,8 @@ type stubDeps struct {
 	store    *state.Store
 	registry *core.Registry
 	manager  *Catalog
+	// cfg 是桩配置；StateDir 默认落在 t.TempDir()，避免测试往真实 home 写凭证。
+	cfg PluginConfig
 
 	callbackResult *core.CallbackSubmitResult
 	callbackErr    error
@@ -32,8 +34,13 @@ type stubDeps struct {
 func (s stubDeps) Identity() Identity {
 	return Identity{ID: "freetier", DisplayName: "FreeTier 2API", ProviderKey: "freetier", Version: "test"}
 }
-func (s stubDeps) Config() PluginConfig { return DefaultPluginConfig() }
-func (s stubDeps) State() state.State   { return s.store.Snapshot() }
+func (s stubDeps) Config() PluginConfig {
+	if s.cfg.StateDir == "" {
+		return DefaultPluginConfig()
+	}
+	return s.cfg
+}
+func (s stubDeps) State() state.State { return s.store.Snapshot() }
 func (s stubDeps) MutateState(fn func(*state.State)) {
 	s.store.Mutate(fn)
 }
@@ -83,7 +90,9 @@ func newStubDeps(t *testing.T) stubDeps {
 		t.Fatal(err)
 	}
 	registry := core.NewRegistry()
-	return stubDeps{store: store, registry: registry, manager: NewCatalog(store, registry)}
+	cfg := DefaultPluginConfig()
+	cfg.StateDir = t.TempDir()
+	return stubDeps{store: store, registry: registry, manager: NewCatalog(store, registry), cfg: cfg}
 }
 
 func newService(t *testing.T) *Service {
