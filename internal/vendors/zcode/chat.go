@@ -1266,7 +1266,12 @@ const (
 	//
 	// 上游按客户端版本判定兼容性（版本过旧会被拒），因此跟进官方升版时要
 	// 同步改这里。
-	ClientAppVersion = "3.16.3"
+	//
+	// 4.0.0 已用真实凭证做 A/B 实测（tests/live 同源探针
+	// internal/vendors/zcode/version_live_test.go）：client/configs 与
+	// billing/balance 在 3.16.3 与 4.0.0 下返回完全一致，升版不影响模型目录
+	// 与额度解析。
+	ClientAppVersion = "4.0.0"
 
 	// UserAgent 与 ClientAppVersion 同源，避免两者漂移。
 	UserAgent = "ZCode/" + ClientAppVersion
