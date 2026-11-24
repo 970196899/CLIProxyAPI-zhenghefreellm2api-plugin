@@ -54,6 +54,13 @@ func FetchQuota(ctx context.Context, cred *Credential) (*Quota, error) {
 	}
 	endpoints := GetEndpoints(cred.Region)
 
+	// 客户端新版配额主源：/sash/api/v2/me/usage。旧端点 /api/v2/quota/usage
+	// 在桌面端只用于 `?outerProviders=cmcc` 取合作方链接，语义已变，留作回退。
+	if quota, okSash := fetchSashQuota(ctx, endpoints, bearer); okSash {
+		quota.Plan = fetchPlanTierName(ctx, endpoints, bearer)
+		return quota, nil
+	}
+
 	raw, errQuota := httpGetBearerJSON(ctx, endpoints.QuotaEndpoint, bearer)
 	if errQuota != nil {
 		return nil, errQuota
@@ -66,6 +73,40 @@ func FetchQuota(ctx context.Context, cred *Credential) (*Quota, error) {
 		AddonQuota:      extractQuotaBucket(raw, "addOnQuota"),
 		OrgPackage:      extractOrgPackage(raw),
 	}, nil
+}
+
+// sashUsagePath 是客户端（qoder 桌面端 0.5.x / IDE）读取配额的路径。
+//
+// 响应：{displayMode:"qoder"|"enterprise",
+//
+//	qoderUsage:{userQuota{total,used,percentage,unit}, addOnQuota, orgResourcePackage,
+//	dedicatedResourcePackages[]},
+//	enterpriseUsage:{openMode, detailUrl}}
+const sashUsagePath = "/sash/api/v2/me/usage"
+
+// fetchSashQuota 用新版配额接口取额度。
+//
+// 第二个返回值表示「这次拿到了可用结构」：企业账号的响应里没有 qoderUsage
+// （额度由组织侧管理，只给 openMode/detailUrl），此时返回 false 让调用方
+// 回退旧端点，而不是把「0/0」当成真实额度报上去。
+func fetchSashQuota(ctx context.Context, endpoints Endpoints, bearer string) (*Quota, bool) {
+	raw, errUsage := httpGetBearerJSON(ctx, endpoints.SashBase+sashUsagePath, bearer)
+	if errUsage != nil {
+		return nil, false
+	}
+	usage, okUsage := raw["qoderUsage"].(map[string]any)
+	if !okUsage {
+		return nil, false
+	}
+	quota := &Quota{
+		UserQuota:  extractQuotaBucket(usage, "userQuota"),
+		AddonQuota: extractQuotaBucket(usage, "addOnQuota"),
+		OrgPackage: extractOrgPackage(usage),
+	}
+	if quota.UserQuota == nil && quota.AddonQuota == nil && quota.OrgPackage == nil {
+		return nil, false
+	}
+	return quota, true
 }
 
 // knownQuotaBucketKeys 是已经单独解析过的顶层桶，通用扫描要跳过。
@@ -167,6 +208,14 @@ func readBucketNumbers(object map[string]any) bucketNumbers {
 		numbers.used = numbers.total - numbers.remaining
 		if numbers.used < 0 {
 			numbers.used = 0
+		}
+	}
+	// 反向同理：客户端新版配额只给 total/used（/sash/api/v2/me/usage），
+	// 没有 remaining 字段。不反推的话「剩余」会恒为 0，面板显示额度已用尽。
+	if !numbers.hasRemaining && numbers.hasTotal && numbers.hasUsed {
+		numbers.remaining = numbers.total - numbers.used
+		if numbers.remaining < 0 {
+			numbers.remaining = 0
 		}
 	}
 	return numbers
