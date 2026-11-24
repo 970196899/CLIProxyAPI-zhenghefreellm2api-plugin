@@ -11,6 +11,7 @@ package live
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,6 +22,24 @@ import (
 	"freetier2api-plugin/internal/app"
 	"freetier2api-plugin/internal/core"
 )
+
+func truncateErr(err error) string {
+	text := strings.ReplaceAll(err.Error(), "\n", " ")
+	if len(text) > 110 {
+		text = text[:110]
+	}
+	return text
+}
+
+func firstLine(text string) string {
+	if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+		text = text[:idx]
+	}
+	if len(text) > 90 {
+		text = text[:90]
+	}
+	return text
+}
 
 func TestLiveActivityAudit(t *testing.T) {
 	dir := os.Getenv("FREETIER_AUDIT_AUTHS")
@@ -84,14 +103,34 @@ func TestLiveActivityAudit(t *testing.T) {
 			t.Logf("AUDIT %-46s unmatched", name)
 			continue
 		}
-		probe, okProbe := core.As[core.TaskInspector](matched)
-		if !okProbe {
-			t.Logf("AUDIT %-46s %-16s no-task-inspector", name, matched.ID())
-			continue
-		}
 		cred, errParse := matched.Parse(raw, name)
 		if errParse != nil {
 			t.Logf("AUDIT %-46s %-16s parse-fail %v", name, matched.ID(), errParse)
+			continue
+		}
+		// 1) 额度：所有实现 QuotaProvider 的渠道都能只读验证。
+		quotaState := "n/a"
+		if quotaProbe, okQuota := core.As[core.QuotaProvider](matched); okQuota {
+			quotaCtx, quotaCancel := context.WithTimeout(context.Background(), 60*time.Second)
+			quota, errQuota := quotaProbe.Quota(quotaCtx, cred)
+			quotaCancel()
+			if errQuota != nil {
+				quotaState = "FAIL " + truncateErr(errQuota)
+			} else if quota == nil {
+				quotaState = "ok(nil)"
+			} else {
+				summary := make([]string, 0, len(quota.Summary))
+			for _, metric := range quota.Summary {
+				summary = append(summary, fmt.Sprintf("%s=%.2f", metric.Key, metric.Value))
+			}
+			quotaState = fmt.Sprintf("ok groups=%d %s", len(quota.Groups), strings.Join(summary, " "))
+			}
+		}
+		t.Logf("QUOTA %-46s %-16s %s", name, matched.ID(), quotaState)
+
+		probe, okProbe := core.As[core.TaskInspector](matched)
+		if !okProbe {
+			t.Logf("AUDIT %-46s %-16s no-task-inspector", name, matched.ID())
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
