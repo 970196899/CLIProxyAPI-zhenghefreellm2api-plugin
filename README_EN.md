@@ -18,8 +18,10 @@ If this project helps you, a Star would mean a lot.
 - Supports 15 free-tier provider instances across 8 vendor families (AutoClaw CN/Global and Raccoon included) with strict per-vendor credential isolation and no account cap
 - Dynamic model catalog discovery, custom model aliases, and cross-provider load balancing / failover
 - Built-in single-page Web console for OAuth device login, localhost callback paste, API Key import, account aliases, batch enable/disable/delete, quota tracking, check-in, model toggling, and settings (the task center and log page were removed; logs live in the host UI)
+- Console account view is paged by provider (All / each vendor, with counts); rows are compact (~34px) so 11 accounts fit on one screen without scrolling. Actions are grouped by purpose, and buttons never shrink below their label on narrow screens
 - Request bodies pass through untouched: no prompt injection, replacement, or appending, and no rewriting of `system` / `tools` / sampling parameters
 - Automated daily check-in, automated daily tasks, and token keepalive refresh (check-in history keeps today only and is cleared on day change)
+- Batch tasks stop at the first upstream 429: remaining tasks are marked skipped instead of failing one by one, and the account gets a 10-minute cooldown honored by later runs
 - No OAuth login entry in the host panel: the plugin is intentionally absent from CLIProxyAPI’s "OAuth login" list, so accounts are added from the plugin console only
 - Pure Go standard library implementation with zero third-party runtime dependencies
 
@@ -120,6 +122,15 @@ In the Models table of the console, click any model ID or its `✎` icon to assi
 The Accounts table shows whatever nickname or email the upstream returns, and some platforms only hand out a default nickname that cannot be changed — with several accounts it becomes impossible to tell them apart. Click the account name or its `✎` icon to set a custom alias; the editor is prefilled with the current name, and the display order becomes **alias → upstream nickname/email → file name → account ID**. Saving an empty value, or typing the original name back, means "no alias" — the record is cleared and the upstream name is used, so behavior is unchanged when no alias is set.
 
 Aliases are stored in `state.json` under `account_aliases`, keyed by account identity (the credential file name, i.e. `core.Credential.FileID`) rather than by nickname or token, so they survive token refresh and re-login into the same credential file.
+
+### 5. Batch Tasks & Rate Limits
+
+The console's **Run all tasks** button walks through check-in, growth tasks and activity perks for the selected accounts. Behaviour worth knowing:
+
+- **Already-claimed items are not errors**: when a vendor answers "already claimed / already checked in / no such task", the task is reported as skipped, not failed, and stays out of the summary details.
+- **The first 429 ends that account's round**: after one upstream rate-limit response the remaining tasks are not attempted (limits are judged per account, so retrying harder only extends the window). They are marked "rate limited, remaining tasks skipped", leaving a single real error in the summary.
+- **Per-account cooldown**: a rate-limited account is parked for 10 minutes (`rate_limited_until` in `state.json`). Re-running inside that window skips it with "cooldown until HH:MM" and resumes automatically afterwards.
+- The summary lists only actionable problems; benign skips are counted but not spelled out.
 
 ## Configuration
 
