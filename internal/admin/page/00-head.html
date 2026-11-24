@@ -63,7 +63,11 @@ body::before {
 /* 头部改成两行网格：第一行「标题 + 语言」，第二行整宽副标题。
    以前 h1 是块级元素、select 紧跟其后，select 会被挤到标题下一行左对齐，
    看着像掉队的控件，还白占一行高度。 */
+/* 右上角被宿主外壳的悬浮按钮（刷新 / 语言 / 主题 / 折叠）占着，页面自己的
+   控件一律不往那里放：右侧留一条安全边距，语言选择器紧跟标题排在左边。
+   之前语言胶囊贴右，正好被宿主主题按钮压住，「中文」两个字被挡掉一半。 */
 header { margin: 14px 20px 0; border-radius: var(--radius); padding: 16px 22px;
+         padding-right: clamp(22px, 13vw, 168px);
          background: var(--glass); border: 1px solid var(--border);
          box-shadow: var(--shadow-card); position: relative; overflow: hidden;
          display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
@@ -71,14 +75,17 @@ header::before { content: ""; position: absolute; width: 300px; height: 300px; b
                  right: -70px; top: -160px;
                  background: radial-gradient(circle, rgba(127,166,200,.13), transparent 65%); }
 header h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.3px; color: var(--fg);
-            flex: 1 1 auto; min-width: 0; }
+            flex: 0 1 auto; min-width: 0; }
 .sub { color: var(--muted); font-size: 12.5px; }
 /* 副标题独占一行（flex-basis 100%），窄屏也不会和标题、语言挤成一坨。 */
 header .sub { color: var(--muted); flex: 1 1 100%; min-width: 0; margin-top: 2px; }
 /* 语言选择器收成小胶囊贴右侧：它是一年点不到两次的设置项，
    不该和标题抢同一档视觉权重。 */
-header > select { flex: none; padding: 4px 8px; font-size: 12.5px; border-radius: 999px;
-                  background: var(--raised); border-color: var(--border); color: var(--muted); }
+header > select { flex: none; padding: 4px 10px; font-size: 12.5px; border-radius: 999px;
+                  background: var(--raised); border-color: var(--border); color: var(--muted);
+                  min-width: 4.6em; text-align: center; }
+/* 语言胶囊跟着标题走：标题不 grow，选择器就不会被顶到右上角的宿主按钮底下。 */
+header > select { margin-left: -2px; }
 header > select:hover, header > select:focus { color: var(--fg); border-color: var(--accent); }
 main { padding: 14px 20px 48px; }
 
