@@ -379,6 +379,21 @@
   });
   // 点击页面其它位置收起菜单（含菜单项自身——它在 closeVendorMenu 后已关闭）。
   document.addEventListener("click", closeVendorMenu);
+  // Esc 收起菜单并把焦点还给触发按钮：键盘用户以前只能再点一次按钮，
+  // 焦点会丢在菜单里。
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    var menu = document.getElementById("addVendorMenu");
+    if (!menu || menu.hidden) return;
+    ev.preventDefault();
+    closeVendorMenu();
+    var btn = document.getElementById("btnAddAccount");
+    if (btn) btn.focus();
+  });
+  // 视口变化（手机横竖屏切换、地址栏收起）后重算菜单可用高度。
+  window.addEventListener("resize", function () {
+    fitVendorMenu(document.getElementById("addVendorMenu"));
+  });
   document.getElementById("btnOpenUrl").addEventListener("click", function () {
     var url = document.getElementById("loginUrl").value;
     if (url) window.open(url, "_blank", "noopener");

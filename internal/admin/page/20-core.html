@@ -588,7 +588,21 @@
     }
     menu.hidden = !menu.hidden;
     liftMenuCard(menu, !menu.hidden);
+    fitVendorMenu(menu);
     syncVendorMenuAria();
+  }
+
+  // fitVendorMenu 按视口剩余高度收住菜单，保证最后一项滚得到。
+  //
+  // 菜单自身 max-height 是 72vh，但它挂在页面中段的按钮下方：手机上按钮离
+  // 底边常常不到 72vh，菜单底部会被视口切掉，尾部渠道既看不见也点不到。
+  // 展开后按「底边 - 菜单顶边」重算一次，滚动条才会真正落在可视区内。
+  function fitVendorMenu(menu) {
+    if (!menu || menu.hidden) return;
+    var rect = menu.getBoundingClientRect();
+    if (!rect.height) return;
+    var avail = window.innerHeight - rect.top - 12;
+    menu.style.maxHeight = Math.max(160, Math.min(560, avail)) + "px";
   }
 
   // vendorLabel 返回供应商展示名；未知 id 时退回 id 本身。

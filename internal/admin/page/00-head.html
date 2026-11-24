@@ -379,6 +379,12 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .tgroup + .tgroup { padding-left: 8px; }
 }
 
+/* 平板宽度下工具栏会折成两行，末簇若仍靠右（margin-left:auto）就会孤零零
+   贴在右下、左边空一大片，看着像错位；折行区间改为左对齐跟着上一行走。 */
+@media (max-width: 1024px) {
+  .tgroup.end { margin-left: 0; }
+}
+
 /* 响应式：手机（≤640px）。 */
 @media (max-width: 640px) {
   header { margin: 8px 8px 0; padding: 12px 14px; }
@@ -415,9 +421,15 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .tgroup + .tgroup { padding-left: 0; border-left: 0; }
   .tgroup.end { margin-left: 0; }
   .toolbar { gap: 8px; }
-  /* 筛选框整行：桌面那点宽度在手机上只够显示「筛选」两个字。 */
-  .filter { flex: 1 1 100%; }
+  /* 筛选与「删除」同一行：以前筛选独占一行，删除孤零零占半格，
+     右侧空出一大片，看着像没对齐。删除按内容定宽，筛选吃掉剩余宽度。 */
+  .filter { flex: 1 1 120px; }
   .filter input[type=text] { flex: 1 1 auto; width: auto; min-width: 0; }
+  /* 下拉菜单跟触发按钮同宽：菜单固定 210px，而「添加账号」在窄屏是整行
+     主按钮，菜单会缩在左边、右侧还压着停用/启用等按钮，像错位。
+     这里让菜单铺满按钮宽度，视觉上才是一体的。 */
+  .tgroup.lead .dropdown { width: 100%; }
+  .tgroup.lead .dropdown-menu { left: 0; right: 0; width: auto; min-width: 0; }
   #accounts table { min-width: 700px; }
   #models table { min-width: 720px; }
 }
