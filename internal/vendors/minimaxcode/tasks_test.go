@@ -102,6 +102,8 @@ func TestParseTokenPlanRemains(t *testing.T) {
 		{"model_name":"MiniMax-M4","current_interval_remaining_percent":0,"current_interval_status":2,
 		 "end_time":1792915791846},
 		{"model_name":"dropped","current_interval_remaining_percent":40,"current_interval_status":3},
+		{"model_name":"only-used","current_interval_used_percent":25,"current_interval_status":1,
+		 "end_time":1792915791846},
 		{"model_name":""},
 		"not-an-object"
 	]}`)
@@ -111,8 +113,12 @@ func TestParseTokenPlanRemains(t *testing.T) {
 		t.Fatalf("groups = %+v, want 5h + 7d", groups)
 	}
 	interval := groups[0]
-	if interval.DisplayName != "5 小时窗口" || len(interval.Buckets) != 2 {
+	if interval.DisplayName != "5 小时窗口" || len(interval.Buckets) != 3 {
 		t.Fatalf("interval group = %+v", interval)
+	}
+	// 只下发 used_percent 的行也要出桶：remaining = 100 - 25 = 75%。
+	if got := interval.Buckets[2].RemainingFraction; got < 0.749 || got > 0.751 {
+		t.Fatalf("only-used bucket fraction = %v, want 0.75", got)
 	}
 	if got := interval.Buckets[0].RemainingFraction; got < 0.989 || got > 0.991 {
 		t.Fatalf("general interval fraction = %v, want 0.99", got)
