@@ -308,7 +308,7 @@
             var historyBtn = el("button", t("历史 ") + history.length, "act");
             historyBtn.type = "button";
             historyBtn.title = t("展开该账号最近 ") + history.length + t(" 次签到");
-            historyBtn.style.marginLeft = "8px";
+            historyBtn.className = "act cell-btn";
             historyRow = buildCheckinHistoryRow(history);
             historyBtn.addEventListener("click", (function (target) {
               return function () { target.hidden = !target.hidden; };
@@ -375,7 +375,8 @@
         // 既不能算进上面两个数（会让人以为现在就能用），也不能不显示。
         var pending = pendingQuota(quota);
         if (pending > 0) {
-          var pendingTag = el("span", t(" 待生效 ") + pending, "muted");
+          // 从属信息做成小标签：纯文本会跟着「7200 / 10000」挤成一行读不清。
+          var pendingTag = el("span", t(" 待生效 ") + pending, "pending-tag");
           pendingTag.title = t("已领取的活动额度，生效后并入上面的剩余 / 总额");
           remainCell.appendChild(pendingTag);
         }
@@ -405,7 +406,11 @@
       // 没到期的账号显示几周前的旧时间，看起来像没同步。额度 fetched_at 才是
       // 上面「剩余 / 总额」真正依据的数据新鲜度，一次查询额度后全表同批次。
       var q = account.quota || {};
-      var rt = q.fetched_at ? new Date(q.fetched_at).toLocaleString() : "-";
+      // 紧凑格式（月/日 时:分）：完整时间戳会把「刷新时间」列撑到 150px 以上，
+      // 而这一列只用来判断「数据新不新」，不需要秒和年份。
+      var rt = q.fetched_at
+        ? new Date(q.fetched_at).toLocaleString(undefined, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        : "-";
       row.appendChild(el("td", rt, "muted"));
 
       table.appendChild(row);
@@ -419,6 +424,7 @@
     host.appendChild(summary);
 
     syncAccountSelection();
+    syncScrollHints();
   }
 
   // loadStatus 拉取账号状态并渲染账号表，返回 Promise 以便调用方串行编排。

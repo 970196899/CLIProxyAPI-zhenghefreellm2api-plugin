@@ -567,7 +567,9 @@
     if (event.target === this) closeClaimModal();
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") { closeClaimModal(); closeModelColumnsMenu(); }
+    // Esc 统一收起所有浮层：领取弹窗、列菜单、供应商菜单。
+    // 以前漏了供应商菜单，键盘用户只能再点一次按钮才能关掉。
+    if (event.key === "Escape") { closeClaimModal(); closeModelColumnsMenu(); closeVendorMenu(); }
   });
   document.getElementById("claimVerifyParam").addEventListener("input", function () {
     if (this.value.trim()) {
@@ -595,7 +597,14 @@
       btn.disabled = false;
     });
   });
-  document.getElementById("btnLoadQuotas").addEventListener("click", function () { loadQuotas(false, selectedAccountIDs()); });
+  // 查询额度是慢接口（后端一轮可达三分钟）：按钮执行期间置灰，
+  // 防止连点把同一批账号的查询叠成多个请求。
+  document.getElementById("btnLoadQuotas").addEventListener("click", function () {
+    var btn = this;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    loadQuotas(false, selectedAccountIDs()).then(function () { btn.disabled = false; });
+  });
   document.getElementById("btnDisableAccounts").addEventListener("click", function () { toggleSelectedAccounts(true); });
   document.getElementById("btnEnableAccounts").addEventListener("click", function () { toggleSelectedAccounts(false); });
   document.getElementById("btnSelectAllAccounts").addEventListener("click", function () { setAllAccountsSelected(true); });

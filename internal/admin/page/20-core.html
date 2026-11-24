@@ -363,6 +363,19 @@
     return el("span", text, "pill" + (kind ? " " + kind : ""));
   }
 
+  // syncScrollHints 只在表格真的溢出时才显示「左右滑动」提示：
+  // 常驻一句提示是噪音，完全不提示又会让人以为列被截断了。
+  function syncScrollHints() {
+    [["accounts", "accountsScrollHint"], ["models", "modelsScrollHint"]].forEach(function (pair) {
+      var box = document.getElementById(pair[0]);
+      var hint = document.getElementById(pair[1]);
+      if (!box || !hint) return;
+      hint.classList.toggle("on", box.scrollWidth - box.clientWidth > 4);
+    });
+  }
+  // 窗口变宽/变窄会改变是否溢出，跟着重算（不需要防抖：只是读两次 scrollWidth）。
+  window.addEventListener("resize", syncScrollHints);
+
   // shortReason 把上游错误正文压成一行：额度格只有一列宽，完整原因放 title。
   function shortReason(text) {
     var flat = String(text || "").replace(/\s+/g, " ").trim();
@@ -554,6 +567,15 @@
     if (!menu) return;
     menu.hidden = true;
     liftMenuCard(menu, false);
+    syncVendorMenuAria();
+  }
+
+  // syncVendorMenuAria 让「添加账号」按钮的 aria-expanded 跟着菜单状态走：
+  // 读屏与键盘用户靠它判断菜单是开着还是关着。
+  function syncVendorMenuAria() {
+    var menu = document.getElementById("addVendorMenu");
+    var btn = document.getElementById("btnAddAccount");
+    if (menu && btn) btn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
   }
 
   // toggleVendorMenu 展开/收起供应商下拉。
@@ -566,6 +588,7 @@
     }
     menu.hidden = !menu.hidden;
     liftMenuCard(menu, !menu.hidden);
+    syncVendorMenuAria();
   }
 
   // vendorLabel 返回供应商展示名；未知 id 时退回 id 本身。

@@ -63,7 +63,7 @@ func TestConsolePageShowsPendingGrant(t *testing.T) {
 
 	for _, literal := range []string{
 		`if (metrics[i] && metrics[i].key === "pending") return metrics[i].value;`,
-		`var pendingTag = el("span", t(" 待生效 ") + pending, "muted");`,
+		`var pendingTag = el("span", t(" 待生效 ") + pending, "pending-tag");`,
 	} {
 		if !strings.Contains(page, literal) {
 			t.Fatalf("console page is missing the pending-grant display (%s)", literal)

@@ -25,21 +25,29 @@
   <section id="view-accounts">
     <div class="card">
       <h2>账号概览 <span class="muted" id="accountCount"></span></h2>
-      <div class="row">
-        <div class="dropdown">
-          <button class="act primary" id="btnAddAccount">添加账号 ▾</button>
-          <div class="dropdown-menu" id="addVendorMenu" hidden></div>
+      <div class="toolbar">
+        <div class="tgroup lead">
+          <div class="dropdown">
+            <button class="act primary" id="btnAddAccount">添加账号 ▾</button>
+            <div class="dropdown-menu" id="addVendorMenu" hidden></div>
+          </div>
         </div>
-        <button class="act" id="btnDisableAccounts">停用选中</button>
-        <button class="act" id="btnEnableAccounts">启用选中</button>
-        <button class="act" id="btnSelectAllAccounts">全选</button>
-        <button class="act" id="btnSelectNoneAccounts">清空</button>
-        <button class="act" id="btnRefresh">Token续期</button>
-        <button class="act" id="btnLoadQuotas">查询额度</button>
-        <button class="act" id="btnCheckin">一键签到</button>
-        <button class="act" id="btnAutoAll">一键任务</button>
-        <button class="act danger" id="btnDeleteAccounts" disabled>删除</button>
-        <label>筛选 <input type="text" id="accountFilter" placeholder="如 workbuddy / 邮箱" style="width:160px"></label>
+        <div class="tgroup">
+          <button class="act" id="btnDisableAccounts">停用选中</button>
+          <button class="act" id="btnEnableAccounts">启用选中</button>
+          <button class="act" id="btnSelectAllAccounts">全选</button>
+          <button class="act" id="btnSelectNoneAccounts">清空</button>
+        </div>
+        <div class="tgroup">
+          <button class="act" id="btnRefresh">Token续期</button>
+          <button class="act" id="btnLoadQuotas">查询额度</button>
+          <button class="act" id="btnCheckin">一键签到</button>
+          <button class="act" id="btnAutoAll">一键任务</button>
+        </div>
+        <div class="tgroup end">
+          <button class="act danger" id="btnDeleteAccounts" disabled>删除</button>
+          <label class="filter">筛选 <input type="text" id="accountFilter" placeholder="如 workbuddy / 邮箱"></label>
+        </div>
       </div>
 
       <div class="card" id="smsBox" hidden>
@@ -111,6 +119,7 @@
     </div>
   </div>
 
+      <div class="scroll-hint" id="accountsScrollHint">← 左右滑动查看完整表格 →</div>
       <div id="accounts"></div>
     </div>
   </section>
@@ -118,22 +127,29 @@
   <section>
     <div class="card">
       <h2>模型 <span class="muted" id="modelCount"></span></h2>
-      <div class="row">
-        <button class="act primary" id="btnLoadModels">读取模型清单</button>
-        <button class="act" id="btnDisableModels">停用选中</button>
-        <button class="act" id="btnEnableModels">启用选中</button>
-        <button class="act" id="btnSelectAllModels">全选</button>
-        <button class="act" id="btnSelectNoneModels">清空</button>
-        <label>筛选 <input type="text" id="modelFilter" placeholder="如 glm / gpt" style="width:160px"></label>
-        <div class="dropdown cols-setter">
-          <button class="act" id="btnModelCols" aria-haspopup="true" aria-expanded="false"
-                  title="选择要在表格中展示的列">列展示 ▾</button>
-          <div class="dropdown-menu right" id="modelColsMenu" hidden></div>
+      <div class="toolbar">
+        <div class="tgroup lead">
+          <button class="act primary" id="btnLoadModels">读取模型清单</button>
+        </div>
+        <div class="tgroup">
+          <button class="act" id="btnDisableModels">停用选中</button>
+          <button class="act" id="btnEnableModels">启用选中</button>
+          <button class="act" id="btnSelectAllModels">全选</button>
+          <button class="act" id="btnSelectNoneModels">清空</button>
+        </div>
+        <div class="tgroup end">
+          <label class="filter">筛选 <input type="text" id="modelFilter" placeholder="如 glm / gpt"></label>
+          <div class="dropdown cols-setter">
+            <button class="act" id="btnModelCols" aria-haspopup="true" aria-expanded="false"
+                    title="选择要在表格中展示的列">列展示 ▾</button>
+            <div class="dropdown-menu right" id="modelColsMenu" hidden></div>
+          </div>
         </div>
       </div>
       <div class="hint">
         点击「模型 ID」列的模型名或其右侧 ✎ 即可编辑别名（留空=恢复官方 ID）。<b>不同供应商的模型设成同一别名</b>，宿主会当成一个 ID 自动调度。
       </div>
+      <div class="scroll-hint" id="modelsScrollHint">← 左右滑动查看完整表格 →</div>
       <div id="models"></div>
     </div>
   </section>
