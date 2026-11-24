@@ -115,6 +115,24 @@ main { padding: 14px 20px 48px; }
 .filter { flex: 0 1 auto; min-width: 0; color: var(--muted); font-size: 12.5px; }
 .filter input[type=text] { width: clamp(150px, 18vw, 220px); }
 
+/* ---- 渠道页签（二级页）----
+   账号多时一屏放不下：与其让人横向滚表格，不如按渠道切页。
+   全部 = 汇总视图；点某个渠道只看该渠道的账号。 */
+.vendor-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.vtab { padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border);
+        background: var(--card); color: var(--muted); font-size: 12px; font-weight: 550;
+        cursor: pointer; white-space: nowrap; transition: color .12s ease, border-color .12s ease, background .12s ease; }
+.vtab:hover { color: var(--fg); border-color: var(--border-strong); }
+.vtab.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.vtab .n { margin-left: 6px; font-size: 11px; opacity: .8; }
+
+/* 账号表压紧一档：11 个账号 + 表头要能在一屏里看完（约 34px/行），
+   字号只降到 12.5px，可读性不受影响。 */
+#accounts th, #accounts td { padding: 5px 8px; }
+#accounts td { font-size: 12.5px; }
+#accounts .pill { padding: 1px 7px; font-size: 11px; }
+#accounts .cell-btn { padding: 1px 7px; font-size: 11px; }
+
 /* 卡片里嵌卡片（短信 / 授权 / API Key 三个表单块）：同款玻璃底再叠一层会
    显得沉重、边界也糊。改成下沉一档，读起来是「账号卡片里的一个子面板」。 */
 .card .card { background: rgba(255,255,255,.028); box-shadow: none; }

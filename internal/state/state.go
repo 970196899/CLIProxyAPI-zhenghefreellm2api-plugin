@@ -129,6 +129,13 @@ type State struct {
 	KeepaliveHours []int `json:"keepalive_hours,omitempty"`
 	BlackcatHours  []int `json:"blackcat_hours,omitempty"`
 
+	// RateLimitedUntil 是账号级限流冷却截止时间（RFC3339，键为账号 uid）。
+	//
+	// 上游 429（soft_rate）按账号判风控：冷却窗口内继续打只会换来更多 429，
+	// 还会把整轮「一键任务」刷成一片失败。冷却期内直接跳过该账号，到期自动
+	// 恢复。只在命中限流时写入，不参与任何幂等判定（区别于 Tasks 里的展示记录）。
+	RateLimitedUntil map[string]string `json:"rate_limited_until,omitempty"`
+
 	// Models 是上游模型清单缓存（按 realm 分桶存于 Realm 字段）。
 	Models []core.CachedModel `json:"models,omitempty"`
 	// ModelsFetchedAt 是清单缓存时间（RFC3339）。

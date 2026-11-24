@@ -303,6 +303,30 @@ func ErrorEnvelopeFromError(err error) []byte {
 // 语义与错误码字符串统一由本文件给出。这样供应商之间不会互相 import，
 // 也不会各自复制一份 HTTPStatus/Retryable 映射。
 
+// IsRateLimitMessage 判断错误文本是否表示上游限流（429 / soft_rate）。
+//
+// 一键任务里同一个账号要连打 5~7 个上游请求。第一条撞 429 之后继续打，只会
+// 换来一屏 429 并把限流窗口拖长——上游按账号判风控，重试间隔再长也没用。
+// 供应商据此提前收尾（把剩余任务记成 skipped），任务引擎据此给账号记冷却。
+//
+// 只看稳定标记（soft_rate / Too Many Requests / [429]），不对裸数字 "429"
+// 做匹配：积分余额、时间戳里出现 429 太常见，误判会让正常账号被跳过。
+func IsRateLimitMessage(text string) bool {
+	lower := strings.ToLower(text)
+	if lower == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"soft_rate", "too many requests", "rate limit", "rate-limit", "限流",
+		"[429]", " 429 ", "http 429", "429:",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // FailureKind 是上游错误的可处置分类。
 type FailureKind string
 

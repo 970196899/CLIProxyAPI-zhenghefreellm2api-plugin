@@ -192,6 +192,53 @@
     return text.indexOf(filter) >= 0;
   }
 
+  // 渠道页签（二级页）的当前选择：空 = 全部渠道。
+  //
+  // 账号多时一屏放不下，按渠道切页比横向滚表格更好用；筛选框仍然在页内生效，
+  // 两者是「与」关系。
+  var activeVendor = "";
+
+  // vendorTabKey 用「供应商 + 区域」做页签键：同名渠道的国内版与国际版是
+  // 两套独立入口（账号、额度、任务都不通用），合并成一个页签会互相误导。
+  function vendorTabKey(account) {
+    return String(account.vendor_id || "") + "|" + String(account.realm || "");
+  }
+
+  // renderVendorTabs 渲染「全部 / 各渠道」页签，带账号数。
+  function renderVendorTabs(host, accounts) {
+    host.textContent = "";
+    // 一两个账号时页签只是噪音，不如把纵向空间留给表格。
+    if (accounts.length < 3) { host.hidden = true; return; }
+    host.hidden = false;
+    var counts = {};
+    accounts.forEach(function (account) {
+      var key = vendorTabKey(account);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    // 当前渠道的账号被删光了：回落到「全部」，否则会停在空白页。
+    if (activeVendor && !counts[activeVendor]) activeVendor = "";
+    var tabs = [{ key: "", label: t("全部"), count: accounts.length }];
+    accounts.forEach(function (account) {
+      var key = vendorTabKey(account);
+      if (counts[key] === undefined) return;
+      tabs.push({ key: key, label: vendorLabel(account.vendor_id, account.realm), count: counts[key] });
+      delete counts[key];
+    });
+    tabs.forEach(function (tab) {
+      var btn = el("button", null, "vtab" + (tab.key === activeVendor ? " on" : ""));
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", tab.key === activeVendor ? "true" : "false");
+      btn.setAttribute("aria-label", tab.label + "，" + tab.count + t(" 个账号"));
+      btn.appendChild(document.createTextNode(tab.label));
+      btn.appendChild(el("span", String(tab.count), "n"));
+      btn.addEventListener("click", function () {
+        activeVendor = tab.key;
+        renderAccounts(lastStatus || { accounts: accounts });
+      });
+      host.appendChild(btn);
+    });
+  }
+
   function renderAccounts(status) {
     var host = document.getElementById("accounts");
     host.textContent = "";
@@ -205,9 +252,14 @@
     });
 
     var filter = (document.getElementById("accountFilter").value || "").trim().toLowerCase();
-    var visible = accounts.filter(function (account) { return accountMatchesFilter(account, filter); });
+    var tabs = document.getElementById("vendorTabs");
+    if (tabs) renderVendorTabs(tabs, accounts);
+    var visible = accounts.filter(function (account) {
+      if (activeVendor && vendorTabKey(account) !== activeVendor) return false;
+      return accountMatchesFilter(account, filter);
+    });
     setText("accountCount", accounts.length
-      ? "（" + (filter ? visible.length + " / " + accounts.length : accounts.length) + t(" 个）")
+      ? "（" + ((filter || activeVendor) ? visible.length + " / " + accounts.length : accounts.length) + t(" 个）")
       : "");
     if (!accounts.length) {
       syncAccountSelection();
@@ -216,7 +268,9 @@
     }
     if (!visible.length) {
       syncAccountSelection();
-      host.appendChild(el("div", t("没有匹配「") + filter + t("」的账号。"), "muted"));
+      host.appendChild(el("div", activeVendor
+        ? t("该渠道下没有匹配的账号。")
+        : t("没有匹配「") + filter + t("」的账号。"), "muted"));
       return;
     }
     // 排序：状态 + 供应商名称 + 账号 ID（启用在上，停用在下；同状态内按 供应商名称 + 账号 ID 升序）

@@ -788,6 +788,55 @@ type autoAllResult struct {
 	Progress string `json:"progress,omitempty"`
 }
 
+// rateLimitCooldown 是命中上游 429 后的账号冷却时长。
+//
+// 10 分钟取自实测：WorkBuddy 的软限流窗口通常在几分钟内滑走，而一键任务里
+// 同一账号要连打 5~7 个请求——冷却期内重跑只会重复撞墙。
+const rateLimitCooldown = 10 * time.Minute
+
+// rateLimitedUntil 返回账号的限流冷却截止时间；已过期或没记过时返回 false。
+func (s *Service) rateLimitedUntil(uid string) (time.Time, bool) {
+	if strings.TrimSpace(uid) == "" {
+		return time.Time{}, false
+	}
+	raw := s.deps.State().RateLimitedUntil[uid]
+	if raw == "" {
+		return time.Time{}, false
+	}
+	until, err := time.Parse(time.RFC3339, raw)
+	if err != nil || !until.After(s.deps.Now()) {
+		return time.Time{}, false
+	}
+	return until, true
+}
+
+// markRateLimited 扫描本轮结果：只要有一条是真限流错误，就给账号记一段冷却。
+//
+// 判定用 core.IsRateLimitMessage（soft_rate / Too Many Requests / [429]），
+// 不按 HTTP 状态反推：供应商已经把上游响应翻译成错误文本，这里只看文本即可。
+func (s *Service) markRateLimited(uid string, results []autoAllResult) {
+	if strings.TrimSpace(uid) == "" {
+		return
+	}
+	limited := false
+	for _, result := range results {
+		if result.Status == "error" && core.IsRateLimitMessage(result.Message) {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		return
+	}
+	until := s.deps.Now().Add(rateLimitCooldown).Format(time.RFC3339)
+	s.deps.MutateState(func(current *state.State) {
+		if current.RateLimitedUntil == nil {
+			current.RateLimitedUntil = map[string]string{}
+		}
+		current.RateLimitedUntil[uid] = until
+	})
+}
+
 // runAutoAll 调用供应商的一键完成，并记录每条结果。
 func (s *Service) runAutoAll(ctx context.Context, account *accountContext) []autoAllResult {
 	runner, okRunner := core.As[core.TaskRunner](account.vendor)
