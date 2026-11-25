@@ -365,13 +365,13 @@ func tokenPlanGroups(rows []any) []pluginapi.QuotaGroup {
 			display = "通用额度"
 		}
 		if bucket, ok := planWindowBucket(display, "5 小时",
-			row["current_interval_remaining_percent"], row["current_interval_status"],
+			windowRemainingPercent(row, "current_interval"), row["current_interval_status"],
 			row["end_time"],
 			row["current_interval_usage_count"], row["current_interval_total_count"]); ok {
 			interval.Buckets = append(interval.Buckets, bucket)
 		}
 		if bucket, ok := planWindowBucket(display, "7 天",
-			row["current_weekly_remaining_percent"], row["current_weekly_status"],
+			windowRemainingPercent(row, "current_weekly"), row["current_weekly_status"],
 			row["weekly_end_time"],
 			row["current_weekly_usage_count"], row["current_weekly_total_count"]); ok {
 			weekly.Buckets = append(weekly.Buckets, bucket)
@@ -385,6 +385,35 @@ func tokenPlanGroups(rows []any) []pluginapi.QuotaGroup {
 		groups = append(groups, weekly)
 	}
 	return groups
+}
+
+// windowRemainingPercent 读取窗口的剩余百分比。
+//
+// 上游对同一含义给了两个字段：`*_remaining_percent` 与 `*_used_percent`
+// （客户端实际读的是后者）。只读 remaining 时，一旦上游只下发 used，窗口
+// 就会整条消失；反过来只读 used 也一样。这里先认 remaining，再按 100-used
+// 反推，两者都缺才返回 nil（交给 planWindowBucket 按「字段缺失」跳过）。
+func windowRemainingPercent(row map[string]any, prefix string) any {
+	if value, okValue := row[prefix+"_remaining_percent"]; okValue && value != nil {
+		if text, isText := value.(string); !isText || strings.TrimSpace(text) != "" {
+			return value
+		}
+	}
+	value, okValue := row[prefix+"_used_percent"]
+	if !okValue || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case float64:
+		return 100 - typed
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		return 100 - parseFloat(typed)
+	default:
+		return nil
+	}
 }
 
 // planWindowBucket 把一行窗口折成展示桶。

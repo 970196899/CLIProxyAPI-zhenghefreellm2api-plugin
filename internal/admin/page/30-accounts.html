@@ -192,6 +192,53 @@
     return text.indexOf(filter) >= 0;
   }
 
+  // 渠道页签（二级页）的当前选择：空 = 全部渠道。
+  //
+  // 账号多时一屏放不下，按渠道切页比横向滚表格更好用；筛选框仍然在页内生效，
+  // 两者是「与」关系。
+  var activeVendor = "";
+
+  // vendorTabKey 用「供应商 + 区域」做页签键：同名渠道的国内版与国际版是
+  // 两套独立入口（账号、额度、任务都不通用），合并成一个页签会互相误导。
+  function vendorTabKey(account) {
+    return String(account.vendor_id || "") + "|" + String(account.realm || "");
+  }
+
+  // renderVendorTabs 渲染「全部 / 各渠道」页签，带账号数。
+  function renderVendorTabs(host, accounts) {
+    host.textContent = "";
+    // 一两个账号时页签只是噪音，不如把纵向空间留给表格。
+    if (accounts.length < 3) { host.hidden = true; return; }
+    host.hidden = false;
+    var counts = {};
+    accounts.forEach(function (account) {
+      var key = vendorTabKey(account);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    // 当前渠道的账号被删光了：回落到「全部」，否则会停在空白页。
+    if (activeVendor && !counts[activeVendor]) activeVendor = "";
+    var tabs = [{ key: "", label: t("全部"), count: accounts.length }];
+    accounts.forEach(function (account) {
+      var key = vendorTabKey(account);
+      if (counts[key] === undefined) return;
+      tabs.push({ key: key, label: vendorLabel(account.vendor_id, account.realm), count: counts[key] });
+      delete counts[key];
+    });
+    tabs.forEach(function (tab) {
+      var btn = el("button", null, "vtab" + (tab.key === activeVendor ? " on" : ""));
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", tab.key === activeVendor ? "true" : "false");
+      btn.setAttribute("aria-label", tab.label + "，" + tab.count + t(" 个账号"));
+      btn.appendChild(document.createTextNode(tab.label));
+      btn.appendChild(el("span", String(tab.count), "n"));
+      btn.addEventListener("click", function () {
+        activeVendor = tab.key;
+        renderAccounts(lastStatus || { accounts: accounts });
+      });
+      host.appendChild(btn);
+    });
+  }
+
   function renderAccounts(status) {
     var host = document.getElementById("accounts");
     host.textContent = "";
@@ -205,9 +252,14 @@
     });
 
     var filter = (document.getElementById("accountFilter").value || "").trim().toLowerCase();
-    var visible = accounts.filter(function (account) { return accountMatchesFilter(account, filter); });
+    var tabs = document.getElementById("vendorTabs");
+    if (tabs) renderVendorTabs(tabs, accounts);
+    var visible = accounts.filter(function (account) {
+      if (activeVendor && vendorTabKey(account) !== activeVendor) return false;
+      return accountMatchesFilter(account, filter);
+    });
     setText("accountCount", accounts.length
-      ? "（" + (filter ? visible.length + " / " + accounts.length : accounts.length) + t(" 个）")
+      ? "（" + ((filter || activeVendor) ? visible.length + " / " + accounts.length : accounts.length) + t(" 个）")
       : "");
     if (!accounts.length) {
       syncAccountSelection();
@@ -216,7 +268,9 @@
     }
     if (!visible.length) {
       syncAccountSelection();
-      host.appendChild(el("div", t("没有匹配「") + filter + t("」的账号。"), "muted"));
+      host.appendChild(el("div", activeVendor
+        ? t("该渠道下没有匹配的账号。")
+        : t("没有匹配「") + filter + t("」的账号。"), "muted"));
       return;
     }
     // 排序：状态 + 供应商名称 + 账号 ID（启用在上，停用在下；同状态内按 供应商名称 + 账号 ID 升序）
@@ -308,7 +362,7 @@
             var historyBtn = el("button", t("历史 ") + history.length, "act");
             historyBtn.type = "button";
             historyBtn.title = t("展开该账号最近 ") + history.length + t(" 次签到");
-            historyBtn.style.marginLeft = "8px";
+            historyBtn.className = "act cell-btn";
             historyRow = buildCheckinHistoryRow(history);
             historyBtn.addEventListener("click", (function (target) {
               return function () { target.hidden = !target.hidden; };
@@ -321,7 +375,7 @@
 
       // 额度列。数据源只有一个：后端 /status 给的 account.quota。
       // 没有结果时按静态能力区分两种截然不同的状态——供应商根本不提供额度
-      // 接口（OpenCode ZEN 等）就是「-- / --」，只有「支持但还没查到」才是
+      // 接口（Cline 等）就是「-- / --」，只有「支持但还没查到」才是
       // 「查询中…」。用「结果里有没有这条」反推会让前者永久卡在查询中。
       var quota = account.quota;
       if (!quota) {
@@ -375,7 +429,8 @@
         // 既不能算进上面两个数（会让人以为现在就能用），也不能不显示。
         var pending = pendingQuota(quota);
         if (pending > 0) {
-          var pendingTag = el("span", t(" 待生效 ") + pending, "muted");
+          // 从属信息做成小标签：纯文本会跟着「7200 / 10000」挤成一行读不清。
+          var pendingTag = el("span", t(" 待生效 ") + pending, "pending-tag");
           pendingTag.title = t("已领取的活动额度，生效后并入上面的剩余 / 总额");
           remainCell.appendChild(pendingTag);
         }
@@ -405,7 +460,11 @@
       // 没到期的账号显示几周前的旧时间，看起来像没同步。额度 fetched_at 才是
       // 上面「剩余 / 总额」真正依据的数据新鲜度，一次查询额度后全表同批次。
       var q = account.quota || {};
-      var rt = q.fetched_at ? new Date(q.fetched_at).toLocaleString() : "-";
+      // 紧凑格式（月/日 时:分）：完整时间戳会把「刷新时间」列撑到 150px 以上，
+      // 而这一列只用来判断「数据新不新」，不需要秒和年份。
+      var rt = q.fetched_at
+        ? new Date(q.fetched_at).toLocaleString(undefined, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        : "-";
       row.appendChild(el("td", rt, "muted"));
 
       table.appendChild(row);
@@ -419,6 +478,7 @@
     host.appendChild(summary);
 
     syncAccountSelection();
+    syncScrollHints();
   }
 
   // loadStatus 拉取账号状态并渲染账号表，返回 Promise 以便调用方串行编排。

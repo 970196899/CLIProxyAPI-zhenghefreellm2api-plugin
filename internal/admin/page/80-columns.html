@@ -158,11 +158,20 @@
     var rows = result.results || [];
     if (!rows.length) { banner("warn", result.message || t("没有可执行的账号"), 8000); return; }
     var got = 0, idle = 0, failed = 0, details = [];
+    // isBenignSkip 判断「未执行」是不是正常状态（已领过、已签到、无此任务…）。
+    //
+    // 这类跳过每天都会出现，写进摘要只会让人以为账号出问题——之前小浣熊的
+    // 「该账号已领取过桌面端登录奖励」就天天占一行，实际是它本该如此。
+    var isBenignSkip = function (message) {
+      return /已领取|已签到|已完成|已领过|无此任务|无需动作|窗口|活动期外|跳过剩余任务/.test(message || "");
+    };
     rows.forEach(function (row) {
       var name = row.label || row.uid || t("账号");
       if (row.skipped) {
         idle++;
-        details.push(name + "：" + (row.message || t("未执行")));
+        // 原因在 row.skipped 里（后端字段名就叫 skipped），不是 row.message：
+        // 以前取错字段，冷却中的账号只会显示一句「未执行」，看不出为什么跳过。
+        if (!isBenignSkip(row.skipped)) details.push(name + "：" + (row.skipped || t("未执行")));
         return;
       }
       var items = row.results || [];

@@ -288,7 +288,7 @@ func mergeHostAuthEntry(target *core.HostAuth, source core.HostAuth) {
 // fileNameBelongsToPlugin 判断文件名是否符合本插件的命名约定。
 //
 // 判据来自供应商注册表而不是硬编码前缀：每个供应商实例的 ID 就是它
-// 的凭证文件名前缀（workbuddycn / qoderglobal / cline / opencodezen）。
+// 的凭证文件名前缀（workbuddycn / qoderglobal / cline）。
 // 新增供应商时它自动生效，不需要在这里同步一份名单。
 //
 // 兼容旧前缀 workbuddy：历史凭证文件是 workbuddy-<uid>.json，当时还没有

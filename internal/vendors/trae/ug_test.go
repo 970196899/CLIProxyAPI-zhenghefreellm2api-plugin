@@ -42,13 +42,16 @@ func ugTestConfig(t *testing.T, host string) Config {
 // 兑换码需要用户提供内容，而手动触发路由只传任务族名、没有请求体入口，所以
 // 那条链路已删除——留着它只会是一个永远调不到的实现。
 //
+// 作品福利（grant_work_benefit）的请求体由 Body 生成器按账号设备号拼，
+// 调用方无需入参，所以留在批量入口里。
+//
 // cobrand/claim 与两个 share_link 需要活动 ID / 作品 ID（上游实测回
 // 4001 / 9080「param is invalid」），插件取不到，同样不进批量入口：每轮白打
 // 3 次注定失败的请求，只会拖慢整轮并把真实原因糊成「暂不可领」。
 func TestUGActionsAreBatchable(t *testing.T) {
 	actions := UGActions()
-	if len(actions) != 2 {
-		t.Fatalf("活动入口数 = %d, 期望 2（竞赛奖励 + 作品抽奖）", len(actions))
+	if len(actions) != 3 {
+		t.Fatalf("活动入口数 = %d, 期望 3（作品福利 + 竞赛奖励 + 作品抽奖）", len(actions))
 	}
 	// 需要入参的端点已从代码里删掉（连常量一起），这里用路径字面量做黑名单，
 	// 防止日后有人凭记忆把它们加回批量入口。
@@ -72,7 +75,7 @@ func TestUGActionsAreBatchable(t *testing.T) {
 		t.Fatalf("ugFissionReserve() = %v，裂变是 share_status/share_link/grant 三次请求，应为 3×%v",
 			ugFissionReserve(), ugDynamicTimeout)
 	}
-	fixedWorst := time.Duration(len(actions)) * perRequestTimeout
+	fixedWorst := time.Duration(len(actions)) * ugFixedTimeout
 	gate := ugFissionReserve() + ugClaimReserve
 	remaining := ugRoundTimeout() - fixedWorst - ugDynamicTimeout
 	triggers := 0
@@ -126,10 +129,12 @@ func TestClaimUGClassifiesEachEndpoint(t *testing.T) {
 		{
 			name: "正常发放",
 			replies: map[string]reply{
+				EpGrantWorkBenefit:   {200, `{"code":0,"message":"ok"}`},
 				EpUGCompetitionClaim: {200, `{"code":0,"message":"ok"}`},
 				EpUGWorkLotteryDraw:  {200, `{"code":2002,"message":"活动已结束"}`},
 			},
 			want: map[string]UGStatus{
+				"work_benefit":      UGClaimed,
 				"competition_claim": UGClaimed,
 				"work_lottery_draw": UGUnavailable,
 			},
@@ -137,10 +142,12 @@ func TestClaimUGClassifiesEachEndpoint(t *testing.T) {
 		{
 			name: "已领取与缺参",
 			replies: map[string]reply{
+				EpGrantWorkBenefit:   {200, `{"code":1001,"message":"该奖励已领取"}`},
 				EpUGCompetitionClaim: {200, `{"code":1001,"message":"该奖励已领取"}`},
 				EpUGWorkLotteryDraw:  {200, `{"code":4001,"message":"param is invalid"}`},
 			},
 			want: map[string]UGStatus{
+				"work_benefit":      UGAlready,
 				"competition_claim": UGAlready,
 				"work_lottery_draw": UGUnavailable,
 			},
@@ -178,8 +185,8 @@ func TestClaimUGClassifiesEachEndpoint(t *testing.T) {
 		if errClaim != nil {
 			t.Fatalf("%s: ClaimUG 返回错误: %v", round.name, errClaim)
 		}
-		if len(results) != 2 {
-			t.Fatalf("%s: 结果数 = %d, 期望 2", round.name, len(results))
+		if len(results) != 3 {
+			t.Fatalf("%s: 结果数 = %d, 期望 3", round.name, len(results))
 		}
 		for _, result := range results {
 			status, known := round.want[result.Key]
@@ -554,8 +561,8 @@ func TestClaimUGKeepsServerErrorsAsFailure(t *testing.T) {
 		if errClaim != nil {
 			t.Fatalf("%s: 不该中止整轮: %v", item.name, errClaim)
 		}
-		if len(results) != 2 {
-			t.Fatalf("%s: 结果数 = %d, 期望 2", item.name, len(results))
+		if len(results) != 3 {
+			t.Fatalf("%s: 结果数 = %d, 期望 3", item.name, len(results))
 		}
 		for _, result := range results {
 			if result.Status != UGFailed {
@@ -1169,7 +1176,10 @@ func TestUGRoundBudgetScalesWithFissionCandidates(t *testing.T) {
 	if ugFissionReserve() != want {
 		t.Fatalf("ugFissionReserve() = %s，want %s（候选数 × 3 次 × ugDynamicTimeout）", ugFissionReserve(), want)
 	}
-	worst := 2*perRequestTimeout + 3*ugDynamicTimeout + ugFissionReserve()
+	// 固定端点按 UGActions() 的实际条数计（作品福利 + 竞赛 + 抽奖），
+	// 不写死 2：写死会让新增端点时这条验算静默失真。
+	fixed := time.Duration(len(UGActions())) * ugFixedTimeout
+	worst := fixed + 3*ugDynamicTimeout + ugFissionReserve()
 	if ugRoundTimeout() < worst {
 		t.Fatalf("ugRoundTimeout() = %s 小于最坏耗时 %s", ugRoundTimeout(), worst)
 	}
@@ -1177,16 +1187,26 @@ func TestUGRoundBudgetScalesWithFissionCandidates(t *testing.T) {
 		t.Fatalf("ugRoundTimeout() = %s 超过宿主 requestTimeout(3min)，会被外层截断", ugRoundTimeout())
 	}
 
-	// 追加一期后预算与总上限必须立刻跟着涨——这正是改成函数的原因：
-	// 包级 var 只在初始化时算一次，之后 append 到候选表不会反映进来。
+	// 追加一期后预算立刻跟着涨，但**不超过 ugRoundCap**：宿主 3min 是硬墙，
+	// 超过它整轮会被外层砍断。所以这里断言「涨到上限为止」，而不是无限线性。
+	baseTimeout := ugRoundTimeout()
 	original := fissionActivityCandidates
 	fissionActivityCandidates = append(original[:len(original):len(original)], original[0])
 	defer func() { fissionActivityCandidates = original }()
 	if got := ugFissionReserve(); got != want+3*ugDynamicTimeout {
 		t.Fatalf("追加候选后 ugFissionReserve() = %s，want %s", got, want+3*ugDynamicTimeout)
 	}
-	if got := ugRoundTimeout(); got != worst+4*ugDynamicTimeout {
-		t.Fatalf("追加候选后 ugRoundTimeout() = %s，want %s", got, worst+4*ugDynamicTimeout)
+	// 追加一期让 reserve 涨 3×ugDynamicTimeout，总上限按同样幅度涨，
+	// 但不超过硬上限。
+	wantTimeout := baseTimeout + 3*ugDynamicTimeout
+	if wantTimeout > ugRoundCap {
+		wantTimeout = ugRoundCap
+	}
+	if got := ugRoundTimeout(); got != wantTimeout {
+		t.Fatalf("追加候选后 ugRoundTimeout() = %s，want %s（上限 %s）", got, wantTimeout, ugRoundCap)
+	}
+	if ugRoundCap >= 3*time.Minute {
+		t.Fatalf("ugRoundCap = %s，必须小于宿主 3min", ugRoundCap)
 	}
 }
 

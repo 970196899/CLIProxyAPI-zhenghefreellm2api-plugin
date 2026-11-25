@@ -1478,8 +1478,36 @@ const (
 
 func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core.AutoTaskResult {
 	results := make([]core.AutoTaskResult, 0, len(autoActions)+7)
+	growthCodes := make([]string, 0, len(autoActions))
+	for _, action := range autoActions {
+		growthCodes = append(growthCodes, action.Code)
+	}
+	familyCodes := []string{
+		AutoTaskCodeTravel, AutoTaskCodeActivity, AutoTaskCodeBlackcat,
+		AutoTaskCodeSchool, AutoTaskCodeStreak,
+	}
+	// 限流收尾：命中 429 后把剩余任务统一记成 skipped。
+	//
+	// 上游按账号判风控，冷却窗口内继续打只会换来更多 429，还会把「一键任务」
+	// 刷成一屏失败，让人以为账号坏了。这里只保留一条真实错误，其余标成
+	// 「已跳过」，任务引擎再据此给该账号记一段冷却。
+	const rateSkip = "上游限流（429），已跳过剩余任务"
+	skipRest := func(codes []string, reason string) []core.AutoTaskResult {
+		rows := make([]core.AutoTaskResult, 0, len(codes))
+		for _, code := range codes {
+			rows = append(rows, core.AutoTaskResult{Code: code, Status: "skipped", Message: reason})
+		}
+		return rows
+	}
+
 	if row := core.CheckinAutoTask(ctx, v, cred); row != nil {
 		results = append(results, *row)
+		// 签到就撞限流时，后面的成长任务与活动福利一个都别再打。
+		if row.Status == "error" && core.IsRateLimitMessage(row.Message) {
+			results = append(results, skipRest(growthCodes, rateSkip)...)
+			results = append(results, skipRest(familyCodes, rateSkip)...)
+			return results
+		}
 	}
 	native, err := v.Native(cred)
 	if err != nil {
@@ -1498,10 +1526,15 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 		})
 		core.SleepContext(ctx, 1050*time.Millisecond)
 	}
-	for _, action := range autoActions {
+	for index, action := range autoActions {
 		task, errTask := findGrowthTask(ctx, client, native, action.Code)
 		if errTask != nil {
 			results = append(results, core.AutoTaskResult{Code: action.Code, Status: "error", Message: errTask.Error()})
+			if core.IsRateLimitMessage(errTask.Error()) {
+				results = append(results, skipRest(growthCodes[index+1:], rateSkip)...)
+				results = append(results, skipRest(familyCodes, rateSkip)...)
+				return results
+			}
 			continue
 		}
 		if task == nil {
@@ -1524,10 +1557,16 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 		if errRun != nil {
 			result.Status = "error"
 			result.Message = errRun.Error()
-		} else {
-			result.Status = "done"
-			result.Message = message
+			results = append(results, result)
+			if core.IsRateLimitMessage(result.Message) {
+				results = append(results, skipRest(growthCodes[index+1:], rateSkip)...)
+				results = append(results, skipRest(familyCodes, rateSkip)...)
+				return results
+			}
+			continue
 		}
+		result.Status = "done"
+		result.Message = message
 		if latest, errLatest := findGrowthTask(ctx, client, native, action.Code); errLatest == nil && latest != nil {
 			result.Progress = fmt.Sprintf("%d/%d", latest.Current, latest.Target)
 		}
@@ -1537,7 +1576,7 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 	// 成长任务之外的活动福利：猫猫旅行、活跃/连登上报、夜猫子、开学季、
 	// 连登奖励。它们原本只在定时排程里跑，一键任务里缺一块，用户点了
 	// 「一键做任务」也拿不到这部分奖励。
-	for _, family := range []struct {
+	families := []struct {
 		code string
 		kind string
 	}{
@@ -1546,11 +1585,20 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 		{AutoTaskCodeBlackcat, TaskKindBlackcat},
 		{AutoTaskCodeSchool, TaskKindSchool},
 		{AutoTaskCodeStreak, TaskKindStreak},
-	} {
+	}
+	for index, family := range families {
 		message, errFamily := v.RunScheduled(ctx, cred, family.kind)
 		switch {
 		case errFamily != nil:
 			results = append(results, core.AutoTaskResult{Code: family.code, Status: "error", Message: errFamily.Error()})
+			if core.IsRateLimitMessage(errFamily.Error()) {
+				rest := make([]string, 0, len(families)-index-1)
+				for _, item := range families[index+1:] {
+					rest = append(rest, item.code)
+				}
+				results = append(results, skipRest(rest, rateSkip)...)
+				return results
+			}
 		case message == "":
 			// 空消息表示本次无需动作（不在窗口 / 活动期外），不占一行。
 		default:

@@ -24,6 +24,7 @@
     if (apiKey) apiKey.hidden = true;
     if (!login) return;
     login.hidden = false;
+    revealPanel(login);
     document.getElementById("loginTitle").textContent = t("添加 ") + providerName(vendor.name) + t(" 账号（网页登录）");
     document.getElementById("loginUrl").value = "";
     var pasteBox = document.getElementById("loginPasteBox");
@@ -273,6 +274,7 @@
     if (login) login.hidden = true;
     if (apiKey) apiKey.hidden = true;
     box.hidden = false;
+    revealPanel(box);
     document.getElementById("smsTitle").textContent = t("添加 ") + providerName(vendor.name) + t(" 账号（手机验证码登录）");
     document.getElementById("inputSmsPhone").value = "";
     document.getElementById("inputSmsCode").value = "";
@@ -299,6 +301,7 @@
     var status = document.getElementById("loginStatus");
     var pasteBox = document.getElementById("loginPasteBox");
     box.hidden = false;
+    revealPanel(box);
     urlField.value = "";
     status.textContent = t("正在获取授权链接…");
 
@@ -379,6 +382,21 @@
   });
   // 点击页面其它位置收起菜单（含菜单项自身——它在 closeVendorMenu 后已关闭）。
   document.addEventListener("click", closeVendorMenu);
+  // Esc 收起菜单并把焦点还给触发按钮：键盘用户以前只能再点一次按钮，
+  // 焦点会丢在菜单里。
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    var menu = document.getElementById("addVendorMenu");
+    if (!menu || menu.hidden) return;
+    ev.preventDefault();
+    closeVendorMenu();
+    var btn = document.getElementById("btnAddAccount");
+    if (btn) btn.focus();
+  });
+  // 视口变化（手机横竖屏切换、地址栏收起）后重算菜单可用高度。
+  window.addEventListener("resize", function () {
+    fitVendorMenu(document.getElementById("addVendorMenu"));
+  });
   document.getElementById("btnOpenUrl").addEventListener("click", function () {
     var url = document.getElementById("loginUrl").value;
     if (url) window.open(url, "_blank", "noopener");
@@ -567,7 +585,9 @@
     if (event.target === this) closeClaimModal();
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") { closeClaimModal(); closeModelColumnsMenu(); }
+    // Esc 统一收起所有浮层：领取弹窗、列菜单、供应商菜单。
+    // 以前漏了供应商菜单，键盘用户只能再点一次按钮才能关掉。
+    if (event.key === "Escape") { closeClaimModal(); closeModelColumnsMenu(); closeVendorMenu(); }
   });
   document.getElementById("claimVerifyParam").addEventListener("input", function () {
     if (this.value.trim()) {
@@ -595,7 +615,14 @@
       btn.disabled = false;
     });
   });
-  document.getElementById("btnLoadQuotas").addEventListener("click", function () { loadQuotas(false, selectedAccountIDs()); });
+  // 查询额度是慢接口（后端一轮可达三分钟）：按钮执行期间置灰，
+  // 防止连点把同一批账号的查询叠成多个请求。
+  document.getElementById("btnLoadQuotas").addEventListener("click", function () {
+    var btn = this;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    loadQuotas(false, selectedAccountIDs()).then(function () { btn.disabled = false; });
+  });
   document.getElementById("btnDisableAccounts").addEventListener("click", function () { toggleSelectedAccounts(true); });
   document.getElementById("btnEnableAccounts").addEventListener("click", function () { toggleSelectedAccounts(false); });
   document.getElementById("btnSelectAllAccounts").addEventListener("click", function () { setAllAccountsSelected(true); });

@@ -8,7 +8,7 @@ import (
 // CreditTable 是「模型 ID → 计费倍率文案」的并发安全表。
 //
 // 各供应商给宿主提供倍率只有一个形态：探测时整表替换，控制台读取时整表快照。
-// 这段逻辑原本在 cline / qoder / raccoon / autoclaw / trae / opencodezen 各抄
+// 这段逻辑原本在 cline / qoder / raccoon / autoclaw / trae 各抄
 // 一份（连字段名都一样），统一收在这里。零值可用。
 type CreditTable struct {
 	mu      sync.RWMutex

@@ -200,7 +200,6 @@ var layerRules = []layerRule{
 	{pkg: "vendors/cline", allowlist: []string{"core", "hostbridge", "logger"}},
 	{pkg: "vendors/codearts", allowlist: []string{"core", "hostbridge", "logger"}},
 	{pkg: "vendors/minimaxcode", allowlist: []string{"core", "hostbridge", "logger"}},
-	{pkg: "vendors/opencodezen", allowlist: []string{"core", "hostbridge", "logger"}},
 	{pkg: "vendors/qoder", allowlist: []string{"core", "hostbridge", "logger"}},
 	{pkg: "vendors/raccoon", allowlist: []string{"core", "hostbridge", "logger"}},
 	{pkg: "vendors/trae", allowlist: []string{"core", "hostbridge", "logger"}},

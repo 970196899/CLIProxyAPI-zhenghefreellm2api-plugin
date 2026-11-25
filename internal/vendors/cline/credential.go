@@ -154,7 +154,7 @@ func isForeignFileName(fileName string) bool {
 		"qoder", "qodercn", "qoderglobal",
 		"trae", "traecn", "traeglobal", "traesolo",
 		"minimax", "minimaxcode", "minimaxcodecn", "minimaxcodeglobal",
-		"opencode", "opencodezen", "zen",
+		"opencode", "zen",
 		"zcode", "zcodecn", "zcodeglobal", "codearts",
 	)
 }

@@ -72,8 +72,8 @@ func TestZCodeActivityPreviewIsReadOnlyAndDegradesWithoutUserID(t *testing.T) {
 	if missing := previewActivities(t, ""); missing.OK || missing.Message != "缺少 account_id" {
 		t.Fatalf("missing account: %+v", missing)
 	}
-	host.AddAccount("3", "opencodezen-oc_test.json", `{"api_key":"sk-test-opencode"}`)
-	if unsupported := previewActivities(t, "opencodezen-oc_test.json"); unsupported.OK || !strings.Contains(unsupported.Message, "活动探测") {
+	host.AddAccount("3", "cline-oc_test.json", `{"type":"cline","refreshToken":"workos:rt-test"}`)
+	if unsupported := previewActivities(t, "cline-oc_test.json"); unsupported.OK || !strings.Contains(unsupported.Message, "活动探测") {
 		t.Fatalf("unsupported vendor: %+v", unsupported)
 	}
 

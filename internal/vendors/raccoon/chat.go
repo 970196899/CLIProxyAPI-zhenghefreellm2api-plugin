@@ -77,6 +77,12 @@ func BaseURL(override, fallback string) string {
 //
 // 名称 / 平台 / 渠道三个头是抓包值；版本见 DefaultClientVersion 的说明
 // ——那个值没有抓包支撑，只是与登录奖励域对齐。
+//
+// ⚠️ 2026-11 对 1.1.3 / 1.0.38 安装包做静态逆向时，asar 里的 package.json
+// 写的是 clientName=raccoon-work，平台枚举只有 desktop-windows（无 -x64），
+// 且没有 x-client-channel 这个头。与抓包不一致的可能原因：构建期注入、或
+// 不同接口各带一套头。**当前线上抓包值是可用的，不要凭 asar 静态值去改**，
+// 除非有新的抓包能证明服务端已切到新值。
 func ApplyClientHeaders(req *http.Request) {
 	req.Header.Set("x-client-name", "@raccoon/office-desktop")
 	req.Header.Set("x-client-platform", "desktop-windows-x64")

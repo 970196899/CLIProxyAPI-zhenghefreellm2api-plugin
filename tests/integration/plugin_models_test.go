@@ -143,7 +143,7 @@ func TestStaticModelsBareAndMerged(t *testing.T) {
 		t.Fatal("glm-5.2 must expose reasoning levels")
 	}
 
-	// 未添加凭证的供应商（如 opencodezen / cline / qoderglobal）的模型不应出现在模型清单中。
+	// 未添加凭证的供应商（如 cline / qoderglobal）的模型不应出现在模型清单中。
 	for _, m := range response.Models {
 		if strings.Contains(strings.ToLower(m.ID), "cline-free") ||
 			strings.Contains(strings.ToLower(m.ID), "qmodel") {

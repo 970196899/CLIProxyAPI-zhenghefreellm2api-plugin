@@ -7,8 +7,11 @@ package qoder
 // 并不存在的目录。拉不到就返回空清单，由控制台提示「刷新模型」。
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"sync"
+	"time"
 
 	"freetier2api-plugin/internal/logger"
 )
@@ -87,4 +90,142 @@ func canonicalModelID(displayName, key string) string {
 		slug = strings.ToLower(strings.TrimSpace(key))
 	}
 	return slug
+}
+
+// ---- 目录外的活动模型（按账号权限自动上下架） ----
+//
+// 为什么需要这层补充：Qoder 的活动模型（如 HungerG）不进模型目录，只在服务端
+// 按 key 放行；放不放行还随账号权益变化（2026-11-24 实测：同一账号 07:41 还能
+// 进队，08:54 起直接返回 112 + pricingUrl）。写死「一定下发」会让客户端看到一个
+// 必然 403 的模型，所以这里先探一次权限，再决定要不要放进目录。
+//
+// 判别依据（上游先校验模型、再排队）：
+//   - 放行 → 排队 10605 isQueued（或正常返回内容）
+//   - 没权限 / key 不存在 → code=112（带 pricingUrl 购买链接）
+//
+// 只考虑 global：HungerG 是国际版 2026-11-23~11-30 的活动模型，国内版目录不含它。
+
+// supplementalModels 返回某区域需要额外考虑放进目录的模型。
+func supplementalModels(region Region) []Model {
+	if region != RegionGlobal {
+		return nil
+	}
+	free := 0.0 // 活动期限免，倍率显式 0（指针区分「没给」与「免费」）
+	return []Model{{
+		Key:         "hungerg",
+		DisplayName: "HungerG",
+		Enable:      true,
+		PriceFactor: &free,
+	}}
+}
+
+// appendSupplemental 用 probe 的结论决定目录外模型要不要下发。
+//
+// 上游清单里已经出现同 key 时以清单为准（不再探测）；probe 为 nil 表示
+// 调用方明确要求无条件下发。
+func appendSupplemental(models []Model, region Region, probe func(Model) bool) []Model {
+	extra := supplementalModels(region)
+	if len(extra) == 0 {
+		return models
+	}
+	seen := make(map[string]bool, len(models))
+	for _, model := range models {
+		seen[strings.TrimSpace(model.Key)] = true
+	}
+	for _, model := range extra {
+		key := strings.TrimSpace(model.Key)
+		if seen[key] {
+			continue
+		}
+		if probe != nil && !probe(model) {
+			continue
+		}
+		models = append(models, model)
+	}
+	return models
+}
+
+// 探测结论的缓存时长：放行缓存久一点（探测要真打一次上游），
+// 拒绝缓存短一点，权限恢复后能较快回到目录里。
+const (
+	accessAllowedTTL = 2 * time.Hour
+	accessDeniedTTL  = 30 * time.Minute
+)
+
+type accessVerdict struct {
+	allowed bool
+	at      time.Time
+}
+
+// entitlementCache 缓存「目录外模型对当前区域是否可用」的探测结论。
+//
+// 必须挂在 adapter 实例上：国内版与国际版是两套账号，结论不能互相复用。
+type entitlementCache struct {
+	mu    sync.Mutex
+	byKey map[string]accessVerdict
+}
+
+// allowed 返回 key 是否可用；结论过期或不存在时调用 probe 重新探测。
+func (c *entitlementCache) allowed(key string, probe func() bool) bool {
+	now := time.Now()
+	c.mu.Lock()
+	if verdict, ok := c.byKey[key]; ok {
+		ttl := accessDeniedTTL
+		if verdict.allowed {
+			ttl = accessAllowedTTL
+		}
+		if now.Sub(verdict.at) < ttl {
+			c.mu.Unlock()
+			return verdict.allowed
+		}
+	}
+	c.mu.Unlock()
+
+	allowed := probe()
+
+	c.mu.Lock()
+	if c.byKey == nil {
+		c.byKey = make(map[string]accessVerdict)
+	}
+	c.byKey[key] = accessVerdict{allowed: allowed, at: now}
+	c.mu.Unlock()
+	return allowed
+}
+
+// withSupplemental 按「当前账号是否真有权限」把目录外模型补进清单。
+func (v *adapter) withSupplemental(ctx context.Context, b *Bridge, models []Model) []Model {
+	return appendSupplemental(models, v.region, func(model Model) bool {
+		return v.access.allowed(model.Key, func() bool {
+			return v.probeModelAccess(ctx, b, model.Key)
+		})
+	})
+}
+
+// probeModelAccess 用一次最小请求判断上游是否对该模型放行。
+//
+// 代价：一个 max_tokens=1 的请求（排队时不会真正生成内容），且结论按 TTL 缓存，
+// 不会每次刷新清单都打上游。
+func (v *adapter) probeModelAccess(ctx context.Context, b *Bridge, key string) bool {
+	if b == nil {
+		return false
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+	messages := []interface{}{map[string]interface{}{"role": "user", "content": "hi"}}
+	errProbe := b.CallQoderWithOpts(probeCtx, "", messages, key, nil, CallOpts{MaxTokens: 1}, func(Delta) {})
+	if errProbe == nil {
+		return true
+	}
+	var upstream *UpstreamError
+	if errors.As(errProbe, &upstream) && upstream.ErrType == ErrTypeModelBusy {
+		// 排队说明模型对该账号开放，只是当前要等。
+		return true
+	}
+	detail := errProbe.Error()
+	if strings.Contains(detail, `"code":"112"`) || strings.Contains(detail, "pricingUrl") {
+		logger.Info("qoder：目录外模型 %s 当前账号无权限，不下发", key)
+		return false
+	}
+	logger.Info("qoder：目录外模型 %s 权限探测失败（%v），不下发", key, errProbe)
+	return false
 }
