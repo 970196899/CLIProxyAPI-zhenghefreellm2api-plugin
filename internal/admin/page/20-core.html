@@ -22,6 +22,8 @@
     "模型 ID": "Model ID", "名称": "Name", "费用倍率": "Cost multiplier", "浮动倍率": "Floating", "上下文": "Context", "输出上限": "Max output", "推理档位": "Reasoning levels", "能力": "Capabilities", "图片": "Images", "工具": "Tools", "」的模型。": "’.", "暂无模型清单，正在从上游获取…": "No model list yet; fetching from the provider…", "点击按费用倍率排序（从低到高 / 从高到低 / 恢复默认）": "Sort by cost multiplier (ascending / descending / default)", "上游计费倍率：": "Provider cost multiplier: ", "点击编辑对外模型 ID（留空恢复官方 ID：": "Edit public model ID (blank restores official ID: ", "点击编辑对外模型 ID（留空即用官方 ID：": "Edit public model ID (blank uses official ID: ", "请先勾选模型": "Select models first", " 个模型，正在同步到宿主…": " models; syncing to host…", "模型列表同步失败：": "Failed to sync models: ", "（可再操作一次重试；宿主版本过老时需手动重启一次）": " (retry the operation; older hosts may require a restart)", "正在从上游拉取模型清单…": "Fetching models from the provider…", "已从上游拉取 ": "Fetched ", " 个模型": " models", "上游返回 0 个模型，请查看运行日志": "The provider returned 0 models; check the logs", "从上游刷新失败：": "Provider refresh failed: ",
     // 以下 3 条 WorkBuddy 额度组名为未来控制台/宿主面板渲染预留词条。
     "基础月度套餐": "Base monthly plan", "活动与签到奖励": "Promotional & check-in rewards", "资源包明细": "Resource packages",
+    // 补全上游 v0.1.68-v0.1.75 新增的中文界面文案（表格横滑提示、渠道页签与空筛选提示）。
+    "← 左右滑动查看完整表格 →": "← Scroll horizontally to view full table →", "全部": "All", "该渠道下没有匹配的账号。": "No matching accounts under this provider.",
     "密钥刚验证失败，请稍候几秒再试（CPA 按 IP 统计失败次数，不能连续重试）。": "Key verification just failed. Wait a few seconds before retrying; CPA counts failures by IP.", "请先填入管理密钥": "Enter the management key first", "管理密钥只能包含可见 ASCII 字符": "The management key must contain only visible ASCII characters", "正在验证密钥…": "Verifying key…", "密钥无效，请重新输入（面板勾选「记住密码」可免输）": "Invalid key; enter it again (or enable Remember password in the panel)", "密钥验证失败：请求未能通过 CPA 鉴权。": "Key verification failed: CPA rejected the request.", "已使用手动填入的密钥": "Using the manually entered key", "添加 ": "Add ", " 账号": " account", "请输入从官网申请的 API Key，保存后插件将自动在 auth 目录创建凭证文件。": "Enter an API key from the provider. Saving creates a credential file in the auth directory.", "粘贴 ": "Paste ", " 凭证": " credentials", "粘贴 AutoClaw 国际版凭证 JSON（含访问令牌与刷新令牌，可从 AutoClaw 桌面端登录态文件或 Agent2API 获取）。": "Paste AutoClaw Global credential JSON (access and refresh tokens from the desktop session file or Agent2API). ", "保存后插件会自动续期。": "The plugin renews it automatically after saving.",
     " 账号（网页登录）": " account (web login)", "先选择登录方式；点按钮后会弹出阿里云人机验证（官方要求的风控步骤）。": "Choose a login method. Alibaba Cloud verification will appear when you click the button.", "使用 ": "Sign in with ", " 登录": "", "粘贴凭证": "Paste credentials", "正在准备人机验证…": "Preparing verification…", "获取风控验证配置失败": "Failed to get verification configuration", "上游没有开启网页登录，请改用「粘贴凭证」": "Web login is not enabled by the provider; use Paste credentials", "上游返回的风控配置不完整，请稍后重试": "The provider returned incomplete verification configuration; retry later", "请在弹出的滑块中完成验证（官方要求的风控步骤）。": "Complete the slider verification in the popup.", "登录失败：": "Login failed: ", "人机验证通过，正在获取授权链接…": "Verification passed; fetching authorization link…", "获取授权链接失败": "Failed to get authorization link", "上游没有返回授权链接，请重试": "The provider did not return an authorization link; retry", "登录完成后浏览器会停在 ": "After login the browser will stop at ", "http://localhost/ 的回调地址": "the http://localhost/ callback address", "。远程 / Docker 部署下这个地址打不开是正常的，把地址栏里的整条链接复制后粘贴到下面提交。": ". For remote / Docker deployments this address may not open; copy the full URL from the address bar and submit it below.", "请打开下面的链接完成 ": "Open the link below to complete ", " 登录。": " login.", "获取授权链接失败：": "Failed to get authorization link: ", "验证码组件初始化超时，请重试": "Captcha initialization timed out; retry", "验证码组件不可用，请重试": "Captcha is unavailable; retry", "验证码等待超时，请重新点击登录再试一次": "Captcha timed out; click login to retry", " 账号（手机验证码登录）": " account (SMS login)", "正在获取授权链接…": "Getting authorization link…", "上游只认本机回调地址 ": "The provider requires the local callback address ", "。与插件同一台机器时直接点「打开链接」即可；远程 / Docker 部署时浏览器会停在该地址上，": ". On the plugin host, click Open link. For remote / Docker deployments the browser will stop at that address; ", "把地址栏里的整条链接复制后粘贴到下面提交。": "copy the full URL from the address bar and submit it below.", "响应缺少 url": "Response missing URL", "请打开下面的链接完成授权，页面会自动检测结果。": "Open the link below to authorize; this page will detect the result.", "授权超时，请重新发起登录。": "Authorization timed out; start login again.", "授权成功，账号已写入 CPA。": "Authorization succeeded; the account was saved to CPA.", "账号添加成功，正在查询该账号额度…": "Account added; checking its quota…", "授权失败：": "Authorization failed: ", "未知原因": "Unknown reason", "等待授权中…（已等待 ": "Waiting for authorization… (elapsed ", " 秒）": " seconds)", "轮询失败：": "Polling failed: ", "链接已复制。": "Link copied.", "复制失败，请手动选中复制。": "Copy failed; select and copy the link manually.", "登录会话已结束，请重新发起登录后再粘贴。": "Login session ended; start login again before pasting.", "请先粘贴浏览器地址栏里的整条链接。": "Paste the full URL from the browser address bar first.", "提交中…": "Submitting…", "解析成功，正在写入账号…": "Callback parsed; saving account…", "回调链接暂时无法完成登录，请重新发起登录后重试。": "The callback could not complete login; start login again and retry.", "提交失败：": "Submission failed: ", "请先重新打开添加面板。": "Reopen the add account panel first.", "请先填写手机号。": "Enter a phone number first.", "发送中…": "Sending…", "正在发送验证码…": "Sending verification code…", "验证码已发送。": "Verification code sent.", "发送失败，请稍后重试。": "Sending failed; retry later.", "发送失败：": "Sending failed: ", "请填写手机号与短信验证码。": "Enter the phone number and SMS code.", "登录中…": "Signing in…", "正在验证并添加账号…": "Verifying and adding account…", "账号添加成功": "Account added", "登录失败，请检查验证码后重试。": "Login failed; check the code and retry.", "API Key 不能为空": "API key is required", "保存中…": "Saving…", "保存失败": "Save failed",
     "正在发起 ": "Starting token renewal for ", "全账号": "all accounts", " 的 Token 续期刷新，请稍候…": "; please wait…", "Token 续期失败：": "Token renewal failed: ", "上游拒绝": "Provider rejected the request", "Token 续期部分成功：": "Token renewal partially succeeded: ", " 成功，": " succeeded, ", " 失败": " failed", "全账号 Token 续期成功": "Token renewal succeeded for all accounts", "Token 续期请求失败：": "Token renewal request failed: ",
@@ -199,6 +201,16 @@
 
   var bannerTimer = null;
 
+  // revealPanel 把刚展开的面板滚进视野。
+  //
+  // 「完成授权 / 手机验证码 / API Key」三块面板都嵌在账号卡里、位于工具栏
+  // 之下：手机上点完「添加账号」再选供应商，面板往往落在屏幕外，看起来
+  // 像点了没反应。block:"nearest" 只在看不见时才滚，已经在视野里就不动。
+  function revealPanel(el) {
+    if (!el || el.hidden || typeof el.scrollIntoView !== "function") return;
+    el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
   function banner(kind, text, duration) {
     if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
     var el = document.getElementById("banner");
@@ -364,6 +376,19 @@
   function pill(text, kind) {
     return el("span", text, "pill" + (kind ? " " + kind : ""));
   }
+
+  // syncScrollHints 只在表格真的溢出时才显示「左右滑动」提示：
+  // 常驻一句提示是噪音，完全不提示又会让人以为列被截断了。
+  function syncScrollHints() {
+    [["accounts", "accountsScrollHint"], ["models", "modelsScrollHint"]].forEach(function (pair) {
+      var box = document.getElementById(pair[0]);
+      var hint = document.getElementById(pair[1]);
+      if (!box || !hint) return;
+      hint.classList.toggle("on", box.scrollWidth - box.clientWidth > 4);
+    });
+  }
+  // 窗口变宽/变窄会改变是否溢出，跟着重算（不需要防抖：只是读两次 scrollWidth）。
+  window.addEventListener("resize", syncScrollHints);
 
   // shortReason 把上游错误正文压成一行：额度格只有一列宽，完整原因放 title。
   function shortReason(text) {
@@ -556,6 +581,15 @@
     if (!menu) return;
     menu.hidden = true;
     liftMenuCard(menu, false);
+    syncVendorMenuAria();
+  }
+
+  // syncVendorMenuAria 让「添加账号」按钮的 aria-expanded 跟着菜单状态走：
+  // 读屏与键盘用户靠它判断菜单是开着还是关着。
+  function syncVendorMenuAria() {
+    var menu = document.getElementById("addVendorMenu");
+    var btn = document.getElementById("btnAddAccount");
+    if (menu && btn) btn.setAttribute("aria-expanded", menu.hidden ? "false" : "true");
   }
 
   // toggleVendorMenu 展开/收起供应商下拉。
@@ -568,6 +602,21 @@
     }
     menu.hidden = !menu.hidden;
     liftMenuCard(menu, !menu.hidden);
+    fitVendorMenu(menu);
+    syncVendorMenuAria();
+  }
+
+  // fitVendorMenu 按视口剩余高度收住菜单，保证最后一项滚得到。
+  //
+  // 菜单自身 max-height 是 72vh，但它挂在页面中段的按钮下方：手机上按钮离
+  // 底边常常不到 72vh，菜单底部会被视口切掉，尾部渠道既看不见也点不到。
+  // 展开后按「底边 - 菜单顶边」重算一次，滚动条才会真正落在可视区内。
+  function fitVendorMenu(menu) {
+    if (!menu || menu.hidden) return;
+    var rect = menu.getBoundingClientRect();
+    if (!rect.height) return;
+    var avail = window.innerHeight - rect.top - 12;
+    menu.style.maxHeight = Math.max(160, Math.min(560, avail)) + "px";
   }
 
   // vendorLabel 返回供应商展示名；未知 id 时退回 id 本身。

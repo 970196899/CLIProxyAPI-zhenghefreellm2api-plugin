@@ -146,7 +146,7 @@ func (s *Service) handleQuotasRequest(req pluginapi.ManagementRequest) pluginapi
 	jobs := make([]quotaJob, 0, len(loaded))
 	for _, account := range loaded {
 		job := quotaJob{entry: account.Entry, vendor: account.Vendor, credential: account.Credential}
-		// 不支持额度查询的供应商（如 OpenCode ZEN）不进查询轮次、不写缓存，
+		// 不支持额度查询的供应商（如 Cline）不进查询轮次、不写缓存，
 		// 也不进 /quotas 结果——页面据 /status 的 supports_quota=false 直接显示
 		// 「-- / --」，不需要一条注定失败的结果。
 		if !supportsQuota(account.Vendor) {

@@ -118,7 +118,7 @@ type accountSummary struct {
 //
 // 键必须同时包含供应商与账号身份。额度结果曾按 Name / Label / AuthIndex 多键落库，
 // 这些字段跨供应商并不唯一（两个账号同昵称、或同一个 auth_index 都很常见），于是 A
-// 账号的额度会被 B 账号读到——OpenCode ZEN 显示 WorkBuddy 的「剩余 / 总额」正是
+// 账号的额度会被 B 账号读到——Cline 显示 WorkBuddy 的「剩余 / 总额」正是
 // 这条路径。
 func quotaCacheKey(vendorID, fileID, authID string) string {
 	vendorID = strings.TrimSpace(vendorID)
@@ -222,7 +222,7 @@ func (s *Service) listAccountSummaries(ctx context.Context, callbackID string) [
 			claim := record
 			summary.Claim = &claim
 		}
-		// 只有支持额度查询的供应商才读取额度缓存。不支持额度的账号（OpenCode
+		// 只有支持额度查询的供应商才读取额度缓存。不支持额度的账号（Cline
 		// ZEN、Cline 等）不该显示任何「剩余 / 总额」，即便缓存里存在同名字段。
 		if supportsQuota(vendor) {
 			if q := s.getCachedQuota(vendor.ID(), uid, summary.AuthID); q != nil {
@@ -458,7 +458,7 @@ func (s *Service) setAuthDisabled(ctx context.Context, callbackID string, entry 
 	if errUpdate != nil {
 		return errUpdate
 	}
-	if errSave := saveAuthFile(callbackID, filepath.Base(targetPath), updated); errSave != nil {
+	if errSave := s.saveAuthFile(callbackID, filepath.Base(targetPath), updated); errSave != nil {
 		return errSave
 	}
 	logger.Info("授权文件 %s 停用=%t（供应商=%s）", filepath.Base(targetPath), disabled,
@@ -540,14 +540,14 @@ func (s *Service) handleAccountAddRequest(req pluginapi.ManagementRequest) plugi
 		return JSONResponse(http.StatusBadRequest, map[string]any{"ok": false, "error": errLimit.Error()})
 	}
 
-	if errSave := saveAuthFile(callbackID, fileName, rawJSON); errSave != nil {
+	if errSave := s.saveAuthFile(callbackID, fileName, rawJSON); errSave != nil {
 		return JSONResponse(http.StatusInternalServerError, map[string]any{"ok": false, "error": errSave.Error()})
 	}
 	logger.Info("已为供应商 %s 添加授权文件 %s", fileName, vendor.ID())
 	return JSONResponse(http.StatusOK, map[string]any{"ok": true, "auth_id": fileName, "message": "账号保存成功"})
 }
 
-// maskedAPIKey 生成 API Key 的脱敏种子（Cline/OpenCode ZEN 等 key 型凭证）。
+// maskedAPIKey 生成 API Key 的脱敏种子（Cline / ZCode 等 key 型凭证）。
 func maskedAPIKey(key string) string {
 	trimmed := strings.TrimSpace(key)
 	if len(trimmed) <= 8 {

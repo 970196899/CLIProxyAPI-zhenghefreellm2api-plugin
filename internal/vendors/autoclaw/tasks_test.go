@@ -156,3 +156,45 @@ func TestTriggerLoginActiveSkipsWithoutDeviceID(t *testing.T) {
 		t.Fatal("没有设备号时不应上报登录活跃")
 	}
 }
+
+// TestCheckinFallsBackToUserInfoOnGone 锁住「旧签到路由下线」的迁移路径。
+//
+// AutoClaw 2.0.3 移除了 /autoclaw-task-complete，返回 404；此时必须改打
+// user-info（每日积分领取），而不是把 404 当成失败让用户每天看到红字。
+func TestCheckinFallsBackToUserInfoOnGone(t *testing.T) {
+	hostbridgetest.UseLoopbackHost(t)
+	var hitUserInfo bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == CheckinPath:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte("404 page not found"))
+		case r.URL.Path == UserInfoPath:
+			hitUserInfo = true
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["source_id"] != "autoclaw" || body["device_id"] == "" {
+				t.Errorf("user-info body = %v，期望 source_id=autoclaw 且带 device_id", body)
+			}
+			_, _ = w.Write([]byte(`{"code":0}`))
+		default:
+			t.Errorf("意外请求: %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	result, errCheckin := Checkin(context.Background(), server.URL, &Credential{AccessToken: "tok", DeviceID: "dev-1"})
+	if errCheckin != nil {
+		t.Fatalf("Checkin: %v", errCheckin)
+	}
+	if !hitUserInfo {
+		t.Fatal("404 后没有回退到 user-info")
+	}
+	if !result.Claimed {
+		t.Fatalf("回退成功后应标记已处理: %+v", result)
+	}
+	if result.TaskID != "user-info" {
+		t.Fatalf("TaskID = %q，期望 user-info", result.TaskID)
+	}
+}

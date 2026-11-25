@@ -51,6 +51,10 @@ type adapter struct {
 	// 控制台要展示倍率，但宿主契约（pluginapi.ModelInfo）没有这个字段，
 	// 只能由本实例在转换模型时顺手记下，供 ConsoleModels 回读。
 	credits core.CreditTable
+	// access 缓存「目录外模型（如 HungerG）对当前区域账号是否可用」的探测结论。
+	//
+	// 上游按账号权益动态开关这类模型，清单里又查不到，只能探一次再决定下发。
+	access entitlementCache
 	// settings 是原始配置键（设备身份需要读 qoder_desktop_version）。
 	settings atomic.Value // map[string]string
 	// localIdentity 是本机官方组件签发的设备身份（每实例解析一次）。
@@ -155,27 +159,31 @@ func (v *adapter) defaultRegionForParse() Region {
 // 失败时返回错误而不是编造清单：注册一份写死的模型目录只会随上游过时，
 // 让客户端看到并不存在的模型。
 func (v *adapter) StaticModels(ctx context.Context) ([]pluginapi.ModelInfo, error) {
-	models, errModels := v.fetchModels(ctx)
+	models, bridge, errModels := v.fetchModels(ctx)
 	if errModels != nil {
 		return nil, errModels
 	}
-	return v.modelsToPluginAPI(models), nil
+	return v.modelsToPluginAPI(v.withSupplemental(ctx, bridge, models)), nil
 }
 
 // fetchModels 借探测凭证拉取上游模型清单。
-func (v *adapter) fetchModels(ctx context.Context) ([]Model, error) {
+func (v *adapter) fetchModels(ctx context.Context) ([]Model, *Bridge, error) {
 	cred, okCred := core.ProbeNativeCredential(v.Env, v.ID(), func(c *core.Credential) (*Credential, bool) {
 		native, okNative := c.Native.(*Credential)
 		return native, okNative
 	})
 	if !okCred || cred == nil {
-		return nil, fmt.Errorf("no credential available for model probe")
+		return nil, nil, fmt.Errorf("no credential available for model probe")
 	}
 	b, errBridge := v.bridgeFor(ctx, cred)
 	if errBridge != nil {
-		return nil, errBridge
+		return nil, nil, errBridge
 	}
-	return b.ListAvailableModels(ctx)
+	models, errModels := b.ListAvailableModels(ctx)
+	if errModels != nil {
+		return nil, b, errModels
+	}
+	return models, b, nil
 }
 
 // ModelsForAuth 返回该凭证可用的模型。
@@ -200,7 +208,7 @@ func (v *adapter) ModelsForAuth(ctx context.Context, cred *core.Credential) ([]p
 	if errModels != nil {
 		return nil, errModels
 	}
-	return v.modelsToPluginAPI(models), nil
+	return v.modelsToPluginAPI(v.withSupplemental(ctx, b, models)), nil
 }
 
 // ---- 执行 ----

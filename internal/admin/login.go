@@ -65,7 +65,7 @@ func (s *Service) handleLoginCallbackRequest(req pluginapi.ManagementRequest) pl
 		// 粘贴路径的凭证只回到**页面**，没人替它落盘——正常轮询路径是宿主在
 		// auth.login.poll 之后写文件的，这里没有那个宿主环节。不补这一下，页面
 		// 显示「登录成功」而 auth 目录里什么都没有。
-		if errSave := saveAuthFile(hostbridge.RequestCallbackID(req), result.Auth.FileName, result.Auth.StorageJSON); errSave != nil {
+		if errSave := s.saveAuthFile(hostbridge.RequestCallbackID(req), result.Auth.FileName, result.Auth.StorageJSON); errSave != nil {
 			payload["ok"] = false
 			payload["status"] = string(pluginapi.AuthLoginStatusError)
 			payload["message"] = "登录已完成，但保存凭证失败：" + errSave.Error()
@@ -136,7 +136,7 @@ func (s *Service) handleLoginSMSVerify(req pluginapi.ManagementRequest) pluginap
 	if body.Label != "" {
 		label = body.Label
 	}
-	if errSave := saveAuthFile(hostbridge.RequestCallbackID(req), fileName, []byte(storageJSON)); errSave != nil {
+	if errSave := s.saveAuthFile(hostbridge.RequestCallbackID(req), fileName, []byte(storageJSON)); errSave != nil {
 		return JSONResponse(http.StatusOK, map[string]any{"ok": false, "message": "登录成功，但保存凭证失败：" + errSave.Error()})
 	}
 	return JSONResponse(http.StatusOK, map[string]any{

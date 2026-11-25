@@ -1,6 +1,8 @@
 package qoder
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"freetier2api-plugin/internal/auth"
@@ -191,5 +193,66 @@ func TestBuildQuotaResponseGroupsFollowSummaryOrder(t *testing.T) {
 	}
 	if fraction := response.Groups[0].Buckets[0].RemainingFraction; fraction < 0.66 || fraction > 0.67 {
 		t.Fatalf("首条额度条比例 = %v，want ≈0.667（2000/3000）", fraction)
+	}
+}
+
+// TestFetchQuotaPrefersSashUsage 锁定「新版配额主源优先」。
+//
+// 客户端把 /sash/api/v2/me/usage 当主源，旧的 /api/v2/quota/usage 只用于
+// outerProviders 链接。新版只给 total/used（没有 remaining），所以解析层必须
+// 反推剩余；否则面板会一直显示「额度已用尽」。
+func TestFetchQuotaPrefersSashUsage(t *testing.T) {
+	upstream := &stubUpstream{responses: map[string]testhostResponse{}}
+	upstream.responses["GET https://openapi.qoder.sh/sash/api/v2/me/usage"] = testhostResponse{
+		status: http.StatusOK,
+		body: `{"displayMode":"qoder","qoderUsage":{
+			"userQuota":{"total":3000,"used":1200,"percentage":40,"unit":"credits"},
+			"addOnQuota":{"total":500,"used":100},
+			"orgResourcePackage":{"cap":2000,"remaining":1500,"available":true}}}`,
+	}
+	// 旧端点故意回 500：一旦实现回退到它，这条用例就会失败。
+	upstream.responses["GET https://openapi.qoder.sh/api/v2/quota/usage"] = testhostResponse{
+		status: http.StatusInternalServerError,
+		body:   `{"error":"should not be called"}`,
+	}
+	installStubHost(t, upstream)
+
+	quota, errQuota := FetchQuota(context.Background(), &Credential{Token: "dt-test", Region: RegionGlobal})
+	if errQuota != nil {
+		t.Fatalf("FetchQuota 返回错误: %v", errQuota)
+	}
+	if quota.UserQuota == nil {
+		t.Fatal("userQuota 未解析")
+	}
+	if quota.UserQuota.Total != 3000 || quota.UserQuota.Used != 1200 || quota.UserQuota.Remaining != 1800 {
+		t.Fatalf("userQuota = %+v，期望 total=3000 used=1200 remaining=1800", *quota.UserQuota)
+	}
+	if quota.AddonQuota == nil || quota.AddonQuota.Remaining != 400 {
+		t.Fatalf("addOnQuota = %+v，期望 remaining=400", quota.AddonQuota)
+	}
+	if quota.OrgPackage == nil || quota.OrgPackage.Total != 2000 {
+		t.Fatalf("orgResourcePackage = %+v，期望 total=2000", quota.OrgPackage)
+	}
+}
+
+// TestFetchQuotaFallsBackForEnterprise 验证：企业账号（无 qoderUsage）回退旧端点。
+func TestFetchQuotaFallsBackForEnterprise(t *testing.T) {
+	upstream := &stubUpstream{responses: map[string]testhostResponse{}}
+	upstream.responses["GET https://openapi.qoder.sh/sash/api/v2/me/usage"] = testhostResponse{
+		status: http.StatusOK,
+		body:   `{"displayMode":"enterprise","enterpriseUsage":{"openMode":"ORG_MANAGED","detailUrl":"https://qoder.com/org"}}`,
+	}
+	upstream.responses["GET https://openapi.qoder.sh/api/v2/quota/usage"] = testhostResponse{
+		status: http.StatusOK,
+		body:   `{"userQuota":{"total":3000,"remaining":2000},"isQuotaExceeded":false}`,
+	}
+	installStubHost(t, upstream)
+
+	quota, errQuota := FetchQuota(context.Background(), &Credential{Token: "dt-test", Region: RegionGlobal})
+	if errQuota != nil {
+		t.Fatalf("FetchQuota 返回错误: %v", errQuota)
+	}
+	if quota.UserQuota == nil || quota.UserQuota.Remaining != 2000 {
+		t.Fatalf("userQuota = %+v，期望回退旧端点后 remaining=2000", quota.UserQuota)
 	}
 }

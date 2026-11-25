@@ -533,7 +533,7 @@ func TestConsolePageWiresLoginCallbackPasteBox(t *testing.T) {
 
 // TestConsoleQuotaCellUsesCapability 锁定账号表额度列的状态判定。
 //
-// 「查询中…」只能表示**确实在查**。上游没有额度接口的供应商（OpenCode ZEN）
+// 「查询中…」只能表示**确实在查**。上游没有额度接口的供应商（Cline）
 // 永远不会有结果，若页面把「没有结果」一律当成查询中，那一行就会永久卡在
 // 「查询中…」，而正确展示是「-- / --」。因此分支必须读后端给的能力标志
 // supports_quota，而不是靠结果是否存在反推。
@@ -972,6 +972,9 @@ func TestConsoleTranslationsCoverLocalStrings(t *testing.T) {
 		`"基础月度套餐": "Base monthly plan"`,
 		`"活动与签到奖励": "Promotional & check-in rewards"`,
 		`"资源包明细": "Resource packages"`,
+		`"← 左右滑动查看完整表格 →": "← Scroll horizontally to view full table →"`,
+		`"全部": "All"`,
+		`"该渠道下没有匹配的账号。": "No matching accounts under this provider."`,
 	} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("console page missing expected translation/header entry: %s", want)
@@ -981,5 +984,28 @@ func TestConsoleTranslationsCoverLocalStrings(t *testing.T) {
 	stale := `"没有账号。请在 CPA 面板的「添加认证」里选择 FreeTier 2API，或在控制台页发起登录。"`
 	if strings.Contains(page, stale) {
 		t.Fatalf("console translations still reference stale FreeTier 2API empty-account key")
+	}
+}
+
+// TestConsoleMobileFeedbackVisible 锁定窄屏下两条「点了没反应」的反馈通道。
+//
+// 事故一：手机上点「读取模型清单」，sticky 横幅贴在页面顶部，被浏览器自带的
+// 悬浮工具条 / 地址栏盖住，用户看不到任何状态。窄屏必须改成视口内的固定浮层。
+// 事故二：点「添加账号」选完渠道后，「完成授权 / 手机验证码 / API Key」面板
+// 展开在工具栏下方，常常落在屏幕外，同样像是没反应，必须滚进视野。
+func TestConsoleMobileFeedbackVisible(t *testing.T) {
+	page := Page("/plugins/zhenghefreellm")
+
+	for _, literal := range []string{
+		".banner.show {\n    position: fixed", // 窄屏横幅改成固定浮层
+		"function revealPanel(",               // 面板展开后滚进视野
+		"revealPanel(login)",
+		"revealPanel(box)",
+		"revealPanel(apiKeyBox)",
+		".vendor-tabs { flex-wrap: nowrap", // 渠道标签单行横滑，不再堆五六行
+	} {
+		if !strings.Contains(page, literal) {
+			t.Fatalf("console page missing mobile-feedback marker (%s)", literal)
+		}
 	}
 }

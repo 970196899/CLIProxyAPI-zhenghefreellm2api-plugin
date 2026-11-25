@@ -60,15 +60,33 @@ body::before {
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* ---- 头部：slim 渐变头带（宿主外壳悬浮按钮压在右上，保持低调不打架） ---- */
+/* 头部改成两行网格：第一行「标题 + 语言」，第二行整宽副标题。
+   以前 h1 是块级元素、select 紧跟其后，select 会被挤到标题下一行左对齐，
+   看着像掉队的控件，还白占一行高度。 */
+/* 右上角被宿主外壳的悬浮按钮（刷新 / 语言 / 主题 / 折叠）占着，页面自己的
+   控件一律不往那里放：右侧留一条安全边距，语言选择器紧跟标题排在左边。
+   之前语言胶囊贴右，正好被宿主主题按钮压住，「中文」两个字被挡掉一半。 */
 header { margin: 14px 20px 0; border-radius: var(--radius); padding: 16px 22px;
+         padding-right: clamp(22px, 13vw, 168px);
          background: var(--glass); border: 1px solid var(--border);
-         box-shadow: var(--shadow-card); position: relative; overflow: hidden; }
+         box-shadow: var(--shadow-card); position: relative; overflow: hidden;
+         display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 header::before { content: ""; position: absolute; width: 300px; height: 300px; border-radius: 50%;
                  right: -70px; top: -160px;
                  background: radial-gradient(circle, rgba(127,166,200,.13), transparent 65%); }
-header h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.3px; color: var(--fg); }
+header h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.3px; color: var(--fg);
+            flex: 0 1 auto; min-width: 0; }
 .sub { color: var(--muted); font-size: 12.5px; }
-header .sub { color: var(--muted); margin-top: 2px; }
+/* 副标题独占一行（flex-basis 100%），窄屏也不会和标题、语言挤成一坨。 */
+header .sub { color: var(--muted); flex: 1 1 100%; min-width: 0; margin-top: 2px; }
+/* 语言选择器收成小胶囊贴右侧：它是一年点不到两次的设置项，
+   不该和标题抢同一档视觉权重。 */
+header > select { flex: none; padding: 4px 10px; font-size: 12.5px; border-radius: 999px;
+                  background: var(--raised); border-color: var(--border); color: var(--muted);
+                  min-width: 4.6em; text-align: center; }
+/* 语言胶囊跟着标题走：标题不 grow，选择器就不会被顶到右上角的宿主按钮底下。 */
+header > select { margin-left: -2px; }
+header > select:hover, header > select:focus { color: var(--fg); border-color: var(--accent); }
 main { padding: 14px 20px 48px; }
 
 /* 卡片不再挂 backdrop-filter：卡片背后只有一张静止的环境光渐变，
@@ -90,8 +108,55 @@ main { padding: 14px 20px 48px; }
    以前写在内联 style 里，内联 specificity 最高，窄屏想改只能上 !important。 */
 .row > .grow { flex: 1 1 0; min-width: 0; }
 .row > .grow-2 { flex: 2 1 0; min-width: 0; }
+
+/* ---- 操作条：按语义分簇 ----
+   十几个按钮平铺等宽换行时，用户扫不出「哪些是选、哪些是执行、哪个危险」，
+   窄屏上还会被压成两三个字一行。这里用 .tgroup 把同类操作收成一簇，
+   簇间一条细竖线做分隔；危险操作推到最右（.end）。 */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.tgroup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.tgroup + .tgroup { padding-left: 10px; border-left: 1px solid var(--border); }
+.tgroup.end { margin-left: auto; padding-left: 0; border-left: 0; }
+/* 筛选框：宽度由 CSS 给，不再写内联 width（内联会盖掉窄屏整行规则）。
+   输入框自己 grow，label 只负责「筛选」两个字。 */
+.filter { flex: 0 1 auto; min-width: 0; color: var(--muted); font-size: 12.5px; }
+.filter input[type=text] { width: clamp(150px, 18vw, 220px); }
+
+/* ---- 渠道页签（二级页）----
+   账号多时一屏放不下：与其让人横向滚表格，不如按渠道切页。
+   全部 = 汇总视图；点某个渠道只看该渠道的账号。 */
+.vendor-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.vtab { padding: 4px 11px; border-radius: 999px; border: 1px solid var(--border);
+        background: var(--card); color: var(--muted); font-size: 12px; font-weight: 550;
+        cursor: pointer; white-space: nowrap; transition: color .12s ease, border-color .12s ease, background .12s ease; }
+.vtab:hover { color: var(--fg); border-color: var(--border-strong); }
+.vtab.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.vtab .n { margin-left: 6px; font-size: 11px; opacity: .8; }
+
+/* 账号表压紧一档：11 个账号 + 表头要能在一屏里看完（约 34px/行），
+   字号只降到 12.5px，可读性不受影响。 */
+#accounts th, #accounts td { padding: 5px 8px; }
+#accounts td { font-size: 12.5px; }
+#accounts .pill { padding: 1px 7px; font-size: 11px; }
+#accounts .cell-btn { padding: 1px 7px; font-size: 11px; }
+
+/* 卡片里嵌卡片（短信 / 授权 / API Key 三个表单块）：同款玻璃底再叠一层会
+   显得沉重、边界也糊。改成下沉一档，读起来是「账号卡片里的一个子面板」。 */
+.card .card { background: rgba(255,255,255,.028); box-shadow: none; }
+.card .card h2 { font-size: 13.5px; }
+
+/* 「待生效 N」是剩余/总额后面的从属信息：做成小标签贴在同一行，
+   否则纯文本会把「7200 / 10000」挤到看不清。 */
+.pending-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px;
+               font-size: 11px; line-height: 1.7; background: var(--accent-soft);
+               color: var(--accent); border: 1px solid transparent; vertical-align: 1px; }
+/* 表格单元格里紧跟正文的小按钮（如「历史 3」）：用类而不是内联 margin。 */
+.cell-btn { margin-left: 8px; padding: 2px 8px; font-size: 11.5px; border-radius: 7px; }
 button.act { padding: 6.5px 13px; border: 1px solid var(--border-strong); border-radius: 9px;
              background: var(--card); color: var(--fg); cursor: pointer; font-size: 13px; font-weight: 550;
+             /* 按钮文案永不折行、也不许被 flex 压到比文字窄：空间不够时换行，
+                而不是把「Token续期」挤成「Token…」。 */
+             white-space: nowrap; flex: none; line-height: 1.4;
              /* 只过渡合成器属性：background/border-color/color 是离散色变，
                 box-shadow 与 filter 每帧都要重新光栅化，高刷下 hover 会发黏。 */
              transition: background .12s ease, border-color .12s ease, color .12s ease,
@@ -204,7 +269,12 @@ input.aliasinput:focus { outline: none; border-color: var(--accent); box-shadow:
 #models .col-status, #models .col-vendor { width: 1%; white-space: nowrap; }
 #models .editablename { display: inline-block; max-width: clamp(120px, 14vw, 200px);
   overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-#models .name-text { display: inline-block; max-width: clamp(80px, 10vw, 150px);
+/* 账号名/邮箱同理：邮箱往往比模型 ID 长得多，不省略就会把整张账号表撑出横向滚动。
+   完整值仍在 title 里，点击即可编辑看到全名。 */
+#accounts .editable { max-width: clamp(150px, 20vw, 260px); min-width: 0; }
+#accounts .editablename { display: inline-block; max-width: 100%; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+#models .name-text { display: inline-block; max-width: clamp(110px, 13vw, 210px);
   overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 #models .col-credits { min-width: 90px; white-space: nowrap; }
 #models .col-context, #models .col-output { min-width: 76px; white-space: nowrap; }
@@ -240,7 +310,10 @@ input.aliasinput:focus { outline: none; border-color: var(--accent); box-shadow:
           border-left-width: 3px; white-space: pre-line;
           max-height: min(38vh, 180px); overflow-y: auto; overscroll-behavior: contain;
           position: relative; }
-.banner.show { display: block; }
+/* 提示吸顶：账号表很长，滚到表格下半段点「停用选中 / 一键任务」时，
+   提示如果留在页面顶部就等于没提示。sticky 让它滚动期间始终可见。 */
+.banner.show { display: block; position: sticky; top: 10px; z-index: 45;
+               box-shadow: var(--shadow-card); }
 /* 常驻横幅（duration=0）不会自动消失，必须给一个显式关闭入口，
    否则只能等下一次操作把它替换掉。 */
 .banner.persist { padding-right: 38px; }
@@ -254,7 +327,15 @@ input.aliasinput:focus { outline: none; border-color: var(--accent); box-shadow:
 .banner.err  { background: var(--err-soft);  border-left: 3px solid var(--err);  color: var(--err); }
 .banner.ok   { background: var(--ok-soft);   border-left: 3px solid var(--ok);   color: var(--ok); }
 .banner.warn { background: var(--warn-soft); border-left: 3px solid var(--warn); color: var(--warn); }
+/* 吸顶后会压在表格文字上：给语义底色垫一层不透明底，否则字和表格叠在一起。 */
+.banner.show.err  { background: linear-gradient(var(--err-soft), var(--err-soft)), var(--pop); }
+.banner.show.ok   { background: linear-gradient(var(--ok-soft), var(--ok-soft)), var(--pop); }
+.banner.show.warn { background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--pop); }
 .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+/* 窄屏下账号/模型表是横向滚动容器：给一句可滑动的提示，避免用户以为列被截断了。 */
+.scroll-hint { display: none; margin: 0 0 6px; font-size: 11.5px; color: var(--muted);
+               text-align: center; letter-spacing: .02em; }
+.scroll-hint.on { display: block; }
 /* ---- 套餐领取弹窗 ---- */
 .modal { position: fixed; inset: 0; z-index: 60; display: none; align-items: center;
          justify-content: center; padding: 20px; background: rgba(6,8,12,.68); backdrop-filter: blur(4px); }
@@ -291,7 +372,17 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
      <h2> 标题和错误行一起卷进滚动。代价：该表在该断点下不再吸顶（overflow-x
      会让 overflow-y 计算为 auto），窄屏本来也没有吸顶价值。 */
   #accounts { overflow-x: auto; }
+  /* 账号表给一个下限宽度：8 列全是 nowrap，容器再窄就会把列压到互相贴住，
+     不如让它横向滚动、每列都读得清。 */
+  #accounts table { min-width: 760px; }
   #models table { min-width: 820px; }
+  .tgroup + .tgroup { padding-left: 8px; }
+}
+
+/* 平板宽度下工具栏会折成两行，末簇若仍靠右（margin-left:auto）就会孤零零
+   贴在右下、左边空一大片，看着像错位；折行区间改为左对齐跟着上一行走。 */
+@media (max-width: 1024px) {
+  .tgroup.end { margin-left: 0; }
 }
 
 /* 响应式：手机（≤640px）。 */
@@ -313,9 +404,48 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   /* 行内控件先让 label 可压缩，控件才跟着收窄，不会撑破视口。 */
   .row > label { max-width: 100%; min-width: 0; }
   .row select { max-width: 100%; min-width: 0; }
-  /* 按钮按内容均分，避免多个按钮各占一行显得松散。 */
-  .row > button.act { flex: 1 1 auto; min-width: 0; }
+  /* 按钮按内容定宽、放不下就换行：min-width 取 max-content，flex 不再把它们
+     压到比文字还窄（以前 min-width:0 会把「Token续期」挤成省略号）。 */
+  .row > button.act, .tgroup > button.act { flex: 1 1 auto; min-width: max-content; }
+  /* 操作条在窄屏改成「每簇一行、簇内两列网格」：等宽、对齐、不会出现
+     最后一行只有一个按钮被拉满整行的参差感。 */
+  .tgroup { flex: 1 1 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .tgroup > * { min-width: 0; }
+  .tgroup button.act { width: 100%; }
+  /* 首簇（添加账号）是主操作，独占一行。 */
+  .tgroup.lead { grid-template-columns: 1fr; }
+  /* 末尾簇是「删除 + 筛选」：删除保持自然宽度，筛选整行。 */
+  .tgroup.end { display: flex; flex-wrap: wrap; }
+  .tgroup.end > button.act { flex: 0 0 auto; width: auto; }
+  /* 分簇竖线在窄屏会跟着换行挂到行首，看着像多出一条线；窄屏改用间距分簇。 */
+  .tgroup + .tgroup { padding-left: 0; border-left: 0; }
+  .tgroup.end { margin-left: 0; }
+  .toolbar { gap: 8px; }
+  /* 筛选与「删除」同一行：以前筛选独占一行，删除孤零零占半格，
+     右侧空出一大片，看着像没对齐。删除按内容定宽，筛选吃掉剩余宽度。 */
+  .filter { flex: 1 1 120px; }
+  .filter input[type=text] { flex: 1 1 auto; width: auto; min-width: 0; }
+  /* 下拉菜单跟触发按钮同宽：菜单固定 210px，而「添加账号」在窄屏是整行
+     主按钮，菜单会缩在左边、右侧还压着停用/启用等按钮，像错位。
+     这里让菜单铺满按钮宽度，视觉上才是一体的。 */
+  .tgroup.lead .dropdown { width: 100%; }
+  .tgroup.lead .dropdown-menu { left: 0; right: 0; width: auto; min-width: 0; }
+  #accounts table { min-width: 700px; }
   #models table { min-width: 720px; }
+  /* 供应商标签在手机上一行放不下就换行，十几个渠道能堆五六行，把账号表整个
+     挤到首屏之外。窄屏改成单行横向滚动（隐藏滚动条），高度固定一行。 */
+  .vendor-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+                 scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .vendor-tabs::-webkit-scrollbar { display: none; }
+  .vendor-tabs > .vtab { flex: 0 0 auto; }
+  /* 提示横幅在手机上改成居中浮层：手机浏览器自带的悬浮工具条 / 地址栏会压住
+     顶部 sticky 的横幅，点了「读取模型清单」「一键任务」之后等于没有任何反馈。
+     固定到视口中部，任何浏览器 UI 都挡不住；最长 46vh，超出内部滚动。 */
+  .banner.show {
+    position: fixed; top: 50%; left: 12px; right: 12px; margin: 0;
+    transform: translateY(-50%); z-index: 70;
+    box-shadow: var(--shadow-pop); max-height: 46vh;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

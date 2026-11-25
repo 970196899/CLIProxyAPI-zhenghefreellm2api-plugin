@@ -8,7 +8,6 @@ import (
 	"freetier2api-plugin/internal/vendors/cline"
 	"freetier2api-plugin/internal/vendors/codearts"
 	"freetier2api-plugin/internal/vendors/minimaxcode"
-	"freetier2api-plugin/internal/vendors/opencodezen"
 	"freetier2api-plugin/internal/vendors/qoder"
 	"freetier2api-plugin/internal/vendors/raccoon"
 	"freetier2api-plugin/internal/vendors/trae"
@@ -23,7 +22,6 @@ func BuiltinFactories() []core.VendorFactory {
 		{Instances: func(env core.Env) []core.Vendor { return cline.Instances(env) }},
 		{Instances: codearts.Instances},
 		{Instances: minimaxcode.Instances},
-		{Instances: func(env core.Env) []core.Vendor { return opencodezen.Instances(env) }},
 		{Instances: qoder.Instances},
 		{Instances: raccoon.Instances},
 		{Instances: trae.Instances},

@@ -113,10 +113,11 @@ func LooksLikeCredential(raw map[string]any, fileName, provider string) bool {
 	if raw == nil {
 		return false
 	}
-	if vendor, okVendor := raw[core.VendorKey].(string); okVendor {
-		if strings.EqualFold(strings.TrimSpace(vendor), VendorID) {
-			return true
-		}
+	// 显式 vendor 字段优先于特征组合：别家渠道的账号文件也可能带
+	// snake_case token 对 + uid（traecn 就是），特征组合会把它们抢过来，
+	// 结果是真正的渠道拿不到凭证、按本渠道协议请求后 401。
+	if decided, claimed := core.VendorFieldVerdict(raw, VendorID, protocolName, "xiaohuanxiong"); decided {
+		return claimed
 	}
 	// 特征组合：Agent2API 落盘的 snake_case 对 + uid。
 	_, hasAccess := raw["access_token"]

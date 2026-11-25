@@ -146,6 +146,13 @@ func (s *Service) runAutoAllTargets(ctx context.Context, callbackID string, targ
 			onProgress(index, len(loaded))
 		}
 		entry := accountResult{Label: account.label(), UID: account.uid(), Realm: account.vendor.Region()}
+		// 冷却期内直接跳过：上一轮已经在这个账号上撞过 429，继续打只会把
+		// 限流窗口拖长，结果也还是一屏失败。到期后自动恢复，不需要用户操作。
+		if until, limited := s.rateLimitedUntil(account.uid()); limited {
+			entry.Skipped = "上游限流冷却中，跳过（至 " + until.Format("15:04") + "）"
+			out = append(out, entry)
+			continue
+		}
 		if _, okRunner := core.As[core.TaskRunner](account.vendor); !okRunner {
 			entry.Skipped = "该供应商没有可自动执行的任务"
 			out = append(out, entry)
@@ -157,6 +164,7 @@ func (s *Service) runAutoAllTargets(ctx context.Context, callbackID string, targ
 			continue
 		}
 		entry.Results = s.runAutoAll(ctx, account)
+		s.markRateLimited(account.uid(), entry.Results)
 		s.unlockAccount(account.uid())
 		out = append(out, entry)
 		if !core.SleepContext(ctx, accountGap) {

@@ -212,6 +212,33 @@ func (v *adapter) ExecuteStream(ctx context.Context, cred *core.Credential, req 
 	return hostbridge.ForwardRawSSE(resp.Body, sink.Emit)
 }
 
+// Quota 读取 Cline 账号余额与当前套餐。
+//
+// 余额是美元账户余额（上游按美分计价、接口折算成美元），套餐用于展示
+// 「Free / Pro / Teams」之类的档位名。两者都缺时返回空摘要，控制台显示
+// 「-- / --」而不是「查询中…」。
+func (v *adapter) Quota(ctx context.Context, cred *core.Credential) (*pluginapi.QuotaFetchResponse, error) {
+	native, errNative := v.Native(cred)
+	if errNative != nil {
+		return nil, errNative
+	}
+	base := BaseURL(v.baseURL)
+	user, errMe := FetchMe(ctx, base, native)
+	if errMe != nil {
+		return nil, core.ToPluginError(errMe)
+	}
+	balance, errBalance := FetchBalance(ctx, base, native, user.ID)
+	if errBalance != nil {
+		return nil, core.ToPluginError(errBalance)
+	}
+	// 套餐是可选信息：查不到不影响余额展示。
+	plan, errPlan := FetchCurrentPlan(ctx, base, native)
+	if errPlan != nil {
+		plan = nil
+	}
+	return quotaResponse(balance, plan), nil
+}
+
 // ---- 登录与续期 ----
 
 // LoginStart 发起一次 WorkOS 设备码授权。

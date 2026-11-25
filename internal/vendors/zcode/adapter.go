@@ -296,16 +296,18 @@ func (v *adapter) RunAllTasks(ctx context.Context, cred *core.Credential) []core
 	default:
 		message += "；当前没有可领的活动"
 	}
-	return append(results, core.AutoTaskResult{
+	results = append(results, core.AutoTaskResult{
 		Code:    AutoTaskCodeActivity,
 		Status:  "done",
 		Message: message,
 	})
+	return results
 }
 
 // RunTask 执行单条任务。ZCode 可自动执行的动作只有活动资格上报。
 func (v *adapter) RunTask(ctx context.Context, cred *core.Credential, code string) (core.TaskRunResult, error) {
-	if strings.TrimSpace(code) != AutoTaskCodeActivity {
+	want := strings.TrimSpace(code)
+	if want != AutoTaskCodeActivity {
 		return core.TaskRunResult{Status: "skipped", Message: "该供应商没有这条任务"}, nil
 	}
 	rows := v.RunAllTasks(ctx, cred)

@@ -80,9 +80,6 @@ func TestAuthParseVendorOwnershipDiscrimination(t *testing.T) {
 		body       string
 		wantHandle bool
 	}{
-		// OpenCodeZEN：opencodezen 文件名 + api_key。
-		{"opencodezen file name", "opencodezen-key1.json", "", `{"api_key":"sk-abc"}`, true},
-		{"opencodezen zen_key field", "my-account.json", "", `{"zen_key":"sk-abc"}`, true},
 		// Cline：cline 文件名 / workos 前缀 / 驼峰 refreshToken。
 		{"cline file name", "cline-me@x.com.json", "", `{"accessToken":"at","refreshToken":"rt"}`, true},
 		{"cline workos prefix", "acc.json", "", `{"access_token":"workos:at"}`, true},

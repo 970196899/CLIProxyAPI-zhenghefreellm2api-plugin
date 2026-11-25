@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -107,6 +108,15 @@ func checkin(ctx context.Context, cred *Credential, benefitState *benefitCheckin
 			return result, nil
 		}
 		return nil, fmt.Errorf("%w；%w", errInfo, errFallback)
+	}
+	// 没有任何可用套餐时，先按客户端做法同步一次控制台套餐（开通免费体验
+	// 套餐）。只对「两种套餐都没有」的账号触发，已有套餐的账号不会被打扰。
+	if !info.Package.IsCreditPackage && !info.Package.IsTokenPackage && strings.TrimSpace(info.Package.SpecCode) != "" {
+		if errSync := syncConsolePackages(ctx, cred, info.Package.SpecCode); errSync == nil {
+			if refreshed, errAgain := fetchAccountInfo(ctx, cred); errAgain == nil {
+				info = refreshed
+			}
+		}
 	}
 	if !info.Package.IsCreditPackage {
 		// Token 计费账户不在积分活动范围，但仍可能有每日免费福利 Token。
@@ -268,6 +278,22 @@ func claimOps(ctx context.Context, cred *Credential, campaignID string) (*opsCla
 		}
 	}
 	return result, nil
+}
+
+// syncConsolePackages 同步控制台套餐，等价于客户端打开会话时的自动开通。
+//
+// 响应 {status:bool, message:string}：status=false 表示上游拒绝（如账号已
+// 有套餐、或地区不支持），把 message 带上便于排查；失败不影响后续签到尝试。
+func syncConsolePackages(ctx context.Context, cred *Credential, specCode string) error {
+	path := EpPackageSync + "?specCode=" + url.QueryEscape(specCode)
+	data, errSync := signedSnapJSON(ctx, http.MethodPost, SnapEngineApiHost+path, cred, []byte("{}"))
+	if errSync != nil {
+		return errSync
+	}
+	if status, okStatus := data["status"].(bool); okStatus && !status {
+		return fmt.Errorf("同步套餐失败: %v", data["message"])
+	}
+	return nil
 }
 
 // fetchAccountInfo 查询账户/套餐信息（判断是否积分计费账户）。

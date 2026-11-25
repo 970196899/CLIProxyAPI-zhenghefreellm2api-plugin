@@ -1,15 +1,14 @@
 package raccoon
 
-// 本文件实现小浣熊的网页授权登录（/code/authorize 授权页 + 回调链接粘贴）。
+// 本文件实现小浣熊的网页授权登录。
 //
 // 流程（与 Agent2API 的网页授权登录一致）：
 //
 //  1. LoginStart 生成一次性 state（64 位小写 hex），返回官方授权页 URL：
 //     {origin}/code/authorize?login_source=desktop&appname=…&state=<state>
 //  2. 用户在官方页面登录（微信/验证码/密码均可）；
-//  3. 官方页面跳转自定义协议 office-raccoon://auth/callback?code=…&state=…
-//     （浏览器打不开这个协议是正常的——地址栏里留着整条链接）；
-//  4. 用户把整条回调链接粘回控制台，SubmitCallback 用 code 换票完成登录。
+//  3. 官方页面跳到本机回调，监听器保存授权码，随后由宿主轮询换票；
+//  4. 回调无法到达监听器时，用户把链接粘回控制台，由 SubmitCallback 换票。
 //
 // 说明：panel 项目早期的微信扫码通道（/login/mp 承载页 +
 // login_with_qrcode_code 轮询）已随上游页面下线而不可用（实测 404，
@@ -55,6 +54,10 @@ const (
 // TTL 与轮询节流由 internal/auth 的会话表统一管理，这里只保留协议状态。
 type PendingLogin struct {
 	State string
+
+	mu           sync.Mutex
+	callbackCode string
+	completed    bool
 }
 
 // StoreLoginSession 登记一次进行中的登录会话。
@@ -222,9 +225,9 @@ func AuthorizeURLWith(origin, appName, state string) string {
 //
 // 授权页现在只接受两种回跳：office-raccoon:// 深链（会被官方客户端吃掉，
 // 插件永远收不到 code），或 http://127.0.0.1:<port>/auth/callback。
-// 因此登录时在本机起一次性监听，授权页确认后浏览器直接打过来，登录当场完成。
+// 因此登录时在本机起一次性监听，接收授权码并交给宿主轮询完成换票。
 // 浏览器与插件不同机时回调打不到这里，地址栏仍留着完整链接，粘回控制台走
-// SubmitCallback 兜底，两条路共用 completeLogin。
+// SubmitCallback 兜底，两条路共用 finishLogin。
 
 // CallbackPort 是 loopback 回调端口。授权页只放行 1024-65535，
 // 且 redirect 必须形如 http://127.0.0.1:<port>/auth/callback。

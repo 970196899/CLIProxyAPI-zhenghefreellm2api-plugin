@@ -178,6 +178,12 @@ func claimCheckinCredits(ctx context.Context, cfg Config, headers map[string]str
 // 常量，改超时只改这里，不会出现「预算按 30s 算、实际单请求 60s」这种错配。
 const perRequestTimeout = 30 * time.Second
 
+// ugFixedTimeout 是批量福利端点的单请求上限。
+//
+// 它们都是几百字节的 JSON POST，正常 1s 内返回；按 30s 计会让「固定端点
+// 最坏耗时」随端点数线性吃掉整轮预算（3 个端点就是 90s）。
+const ugFixedTimeout = 12 * time.Second
+
 // ugDynamicTimeout 是活动表 / 活动触发 / 分享裂变这几个动态端点的单次上限。
 //
 // 比固定端点小，是因为一轮里的请求数不再固定：2 个固定端点已经占掉
@@ -232,6 +238,14 @@ func ugDynamicCtx(ctx context.Context) (context.Context, context.CancelFunc) {
 // 200 的处理不同（签到/额度要分类上抛，活动要把 body 里的原因带出来）——
 // 所以这里只负责传输，语义留给调用方。
 func postJSON(ctx context.Context, url string, headers map[string]string, payload []byte) (int, []byte, error) {
+	return postJSONWithTimeout(ctx, url, headers, payload, perRequestTimeout)
+}
+
+// postJSONWithTimeout 与 postJSON 相同，但可指定单请求超时。
+//
+// 批量福利端点用它：一次要串好几个小 POST，每个都按 30s 计会让整轮预算
+// 直接顶到宿主 3min 上限（见 ugRoundTimeout 的验算）。
+func postJSONWithTimeout(ctx context.Context, url string, headers map[string]string, payload []byte, timeout time.Duration) (int, []byte, error) {
 	if payload == nil {
 		payload = []byte("{}")
 	}
@@ -242,7 +256,7 @@ func postJSON(ctx context.Context, url string, headers map[string]string, payloa
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	resp, errDo := hostbridge.Client(ctx, perRequestTimeout).Do(req)
+	resp, errDo := hostbridge.Client(ctx, timeout).Do(req)
 	if errDo != nil {
 		return 0, nil, fmt.Errorf("trae request failed: %w", errDo)
 	}
@@ -494,6 +508,12 @@ func FetchQuota(ctx context.Context, cred *Credential, cfg Config) (*pluginapi.Q
 }
 
 const (
+	// EpGrantWorkBenefit 领取「作品福利」（activity_type=101）。
+	//
+	// 官方客户端在 entitlement 刷新后自动调用它，body 是
+	// {trae_client, device_id}。桌面端用 Lite，IDE 用 IDE；上游对未知取值
+	// 回 400，所以 claimUGOne 带一次 IDE→Lite 回退。
+	EpGrantWorkBenefit = "/trae/api/v2/pay/grant_work_benefit"
 	// EpUGCompetitionClaim 领取竞赛奖励。
 	EpUGCompetitionClaim = "/trae/api/v2/ug/competition/claim_package"
 	// EpUGWorkLotteryDraw 抽奖（作品活动）。
@@ -508,6 +528,8 @@ type UGAction struct {
 	Label string
 	// Path 是相对签到主机的路径。
 	Path string
+	// Body 生成请求体；nil 表示空体（多数端点是「无参 POST」）。
+	Body func(cred *Credential) ([]byte, error)
 }
 
 // UGActions 返回签到之外可批量尝试的活动入口。
@@ -523,8 +545,23 @@ type UGAction struct {
 // 包装成「暂不可领」，既拖慢整轮又掩盖真实原因。等能取到 ID 再接。
 func UGActions() []UGAction {
 	return []UGAction{
+		{Key: "work_benefit", Label: "作品福利", Path: EpGrantWorkBenefit, Body: workBenefitBody("IDE")},
 		{Key: "competition_claim", Label: "竞赛奖励", Path: EpUGCompetitionClaim},
 		{Key: "work_lottery_draw", Label: "作品抽奖", Path: EpUGWorkLotteryDraw},
+	}
+}
+
+// workBenefitBody 生成 grant_work_benefit 的请求体。
+//
+// device_id 必须是**该账号**的派生设备号（与签到同一套），否则上游会把
+// 多个账号当成同一台设备、只给其中一个发福利。
+func workBenefitBody(client string) func(cred *Credential) ([]byte, error) {
+	return func(cred *Credential) ([]byte, error) {
+		deviceID := CheckinDeviceID(cred)
+		if deviceID == "" {
+			return nil, fmt.Errorf("trae: 缺少账号 uid，无法派生设备号")
+		}
+		return json.Marshal(map[string]string{"trae_client": client, "device_id": deviceID})
 	}
 }
 
@@ -643,7 +680,7 @@ func ClaimUG(ctx context.Context, cred *Credential, cfg Config) ([]UGResult, err
 		if errCtx := ctx.Err(); errCtx != nil {
 			return results, errCtx
 		}
-		result, errStop := claimUGOne(ctx, cfg, headers, action)
+		result, errStop := claimUGOne(ctx, cfg, cred, headers, action)
 		results = append(results, result)
 		if errStop != nil {
 			// 凭证失效：后面的端点只会得到同一个 401，停在这里并如实上报。
@@ -689,21 +726,55 @@ func ClaimUG(ctx context.Context, cred *Credential, cfg Config) ([]UGResult, err
 // 加端点时同步上调（ug_test.go 用同一组常量验算，改超时不会漏改预算）。
 const ugRoundSlack = ugDynamicTimeout
 
+// ugRoundCap 是一轮的硬上限：必须小于宿主手动触发的 3min 请求超时，
+// 否则整轮会被宿主先砍断，用户看到的是「超时」而不是结果。
+const ugRoundCap = 175 * time.Second
+
 func ugRoundTimeout() time.Duration {
-	return 2*perRequestTimeout + 3*ugDynamicTimeout + ugFissionReserve() + ugRoundSlack
+	// 固定端点数不写死：UGActions() 增删一项，预算自动跟着变。
+	fixed := time.Duration(len(UGActions())) * ugFixedTimeout
+	total := fixed + 2*ugDynamicTimeout + ugFissionReserve() + ugRoundSlack
+	if total > ugRoundCap {
+		// 端点变多时不能让预算无限涨：超了宿主上限就等于白跑。压到硬上限后
+		// 仍要留出至少一次活动触发（验算见 TestUGActionsAreBatchable）。
+		return ugRoundCap
+	}
+	return total
 }
 
 // claimUGOne 打一个端点并归类结果。
 //
 // 第二个返回值只在「这一轮不该继续」时非空（凭证失效），其余失败只体现在
 // UGResult 上：单个活动不可领不影响后面的端点。
-func claimUGOne(ctx context.Context, cfg Config, headers map[string]string, action UGAction) (UGResult, error) {
+func claimUGOne(ctx context.Context, cfg Config, cred *Credential, headers map[string]string, action UGAction) (UGResult, error) {
 	result := UGResult{Key: action.Key, Label: action.Label}
-	status, body, errDo := postJSON(ctx, cfg.CheckinHost+action.Path, headers, nil)
+	var payload []byte
+	if action.Body != nil {
+		var errBody error
+		payload, errBody = action.Body(cred)
+		if errBody != nil {
+			result.Status = UGFailed
+			result.Message = errBody.Error()
+			return result, nil
+		}
+	}
+	status, body, errDo := postJSONWithTimeout(ctx, cfg.CheckinHost+action.Path, headers, payload, ugFixedTimeout)
 	if errDo != nil {
 		result.Status = UGFailed
 		result.Message = errDo.Error()
 		return result, nil
+	}
+	// trae_client 的取值只有上游知道哪些可用：IDE 被拒时按客户端实际用的
+	// Lite 再试一次。只对 400 回退，429/5xx 不是取值问题。
+	if status == http.StatusBadRequest && action.Key == "work_benefit" && payload != nil {
+		if altBody, errAlt := workBenefitBody("Lite")(cred); errAlt == nil {
+			status, body, errDo = postJSONWithTimeout(ctx, cfg.CheckinHost+action.Path, headers, altBody, ugFixedTimeout)
+			if errDo != nil {
+				result.Status = UGFailed
+				result.Message = errDo.Error()
+				return result, nil
+			}
+		}
 	}
 	if status == http.StatusUnauthorized {
 		// 凭证失效：后面的端点只会得到同一个 401。用分类错误上抛，宿主据此

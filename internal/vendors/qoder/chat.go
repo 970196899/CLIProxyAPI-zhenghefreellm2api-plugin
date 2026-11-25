@@ -1572,6 +1572,7 @@ func (b *Bridge) ListAvailableModels(ctx context.Context) ([]Model, error) {
 	if len(models) == 0 {
 		return nil, fmt.Errorf("%s -> empty model list, keys=%v", modelListURL, keys)
 	}
+	// 目录外的活动模型（如 HungerG）由 adapter 探测权限后补上，见 models.go。
 	return models, nil
 }
 

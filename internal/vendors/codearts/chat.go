@@ -340,6 +340,12 @@ const (
 	//   领取       POST {snap}/v1/ops/claim   {campaignId, channel:"IDE"}
 	//   领取确认   POST {snap}/v1/ops/confirm {campaignId}
 	EpPackageInfo = "/snap-manager/v1/statistics/plugin"
+	// EpPackageSync 同步控制台套餐（开通免费体验套餐）。
+	//
+	// 客户端在打开会话时按 package.spec_code 调它，服务端回 {status, message}；
+	// 成功后套餐变为「体验套餐、持续免费、自动续期」。没有这一步，新账号既
+	// 没有套餐也没有签到活动。
+	EpPackageSync = "/snap-manager/v1/package/sync-console-packages"
 	EpOpsDelivery = "/v1/ops/delivery"
 	EpOpsClaim    = "/v1/ops/claim"
 	EpOpsConfirm  = "/v1/ops/confirm"
